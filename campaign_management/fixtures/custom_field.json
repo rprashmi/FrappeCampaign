@@ -1,6 +1,7 @@
 [
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-ga_client_id",
     "dt": "CRM Lead",
     "fieldname": "ga_client_id",
     "label": "GA4 Client ID",
@@ -9,11 +10,11 @@
     "in_list_view": 1,
     "in_standard_filter": 1,
     "bold": 1,
-    "read_only": 0,
     "description": "Auto-captured from Google Analytics 4"
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-campaign_section",
     "dt": "CRM Lead",
     "fieldname": "campaign_section",
     "label": "Campaign Information",
@@ -22,6 +23,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-utm_source",
     "dt": "CRM Lead",
     "fieldname": "utm_source",
     "label": "UTM Source",
@@ -30,6 +32,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-source_type",
     "dt": "CRM Lead",
     "fieldname": "source_type",
     "label": "Source Type",
@@ -41,6 +44,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-utm_medium",
     "dt": "CRM Lead",
     "fieldname": "utm_medium",
     "label": "UTM Medium",
@@ -49,6 +53,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-source_name",
     "dt": "CRM Lead",
     "fieldname": "source_name",
     "label": "Source Name",
@@ -58,6 +63,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-utm_campaign",
     "dt": "CRM Lead",
     "fieldname": "utm_campaign",
     "label": "UTM Campaign",
@@ -66,6 +72,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-campaign_lead_link",
     "dt": "CRM Lead",
     "fieldname": "campaign_lead_link",
     "label": "Campaign Lead",
@@ -77,6 +84,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-page_url",
     "dt": "CRM Lead",
     "fieldname": "page_url",
     "label": "Page URL",
@@ -85,6 +93,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-campaign_column",
     "dt": "CRM Lead",
     "fieldname": "campaign_column",
     "fieldtype": "Column Break",
@@ -92,6 +101,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-referrer",
     "dt": "CRM Lead",
     "fieldname": "referrer",
     "label": "Referrer",
@@ -100,6 +110,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-tracking_info",
     "dt": "CRM Lead",
     "fieldname": "tracking_info",
     "label": "Tracking Information",
@@ -109,6 +120,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "CRM Lead-full_tracking_details",
     "dt": "CRM Lead",
     "fieldname": "full_tracking_details",
     "label": "Full Tracking Details",
