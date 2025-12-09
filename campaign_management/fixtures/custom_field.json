@@ -1,0 +1,53 @@
+[
+    {
+        "doctype": "Custom Field",
+        "name": "CRM Lead-campaign_section",
+        "dt": "CRM Lead",
+        "fieldname": "campaign_section",
+        "fieldtype": "Section Break",
+        "label": "Campaign Information",
+        "insert_after": "lead_owner"
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "CRM Lead-source_type",
+        "dt": "CRM Lead",
+        "fieldname": "source_type",
+        "fieldtype": "Select",
+        "label": "Source Type",
+        "options": "Landing Page\nForm",
+        "insert_after": "campaign_section",
+        "in_list_view": 1,
+        "in_standard_filter": 1
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "CRM Lead-source_name",
+        "dt": "CRM Lead",
+        "fieldname": "source_name",
+        "fieldtype": "Data",
+        "label": "Source Name",
+        "insert_after": "source_type",
+        "in_list_view": 1
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "CRM Lead-campaign_lead_link",
+        "dt": "CRM Lead",
+        "fieldname": "campaign_lead_link",
+        "fieldtype": "Link",
+        "label": "Campaign Lead",
+        "options": "Campaign Lead",
+        "insert_after": "source_name",
+        "in_list_view": 1,
+        "description": "Click to view detailed tracking information"
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "CRM Lead-campaign_column",
+        "dt": "CRM Lead",
+        "fieldname": "campaign_column",
+        "fieldtype": "Column Break",
+        "insert_after": "campaign_lead_link"
+    }
+]

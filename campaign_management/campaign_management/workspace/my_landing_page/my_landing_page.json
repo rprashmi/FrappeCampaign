@@ -1,0 +1,42 @@
+{
+ "app": "campaign_management",
+ "charts": [],
+ "content": "[{\"id\":\"3l2zBuP6AR\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>My Landing Pages</b></span>\",\"col\":9}},{\"id\":\"Vd-fKhZb0H\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"create LM\",\"col\":3}},{\"id\":\"pYidSyQYWw\",\"type\":\"quick_list\",\"data\":{\"quick_list_name\":\"Landing Page List\",\"col\":12}}]",
+ "creation": "2025-11-15 15:20:13.912242",
+ "custom_blocks": [
+  {
+   "custom_block_name": "Create Landing Page button",
+   "label": "create LM"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "arrow-right",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "My Landing Page",
+ "links": [],
+ "modified": "2025-11-25 14:46:50.230402",
+ "modified_by": "Administrator",
+ "module": "Campaign Management",
+ "name": "My Landing Page",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "Campaign Management",
+ "public": 1,
+ "quick_lists": [
+  {
+   "document_type": "Landing Page",
+   "label": "Landing Page List",
+   "quick_list_filter": "[]"
+  }
+ ],
+ "roles": [],
+ "sequence_id": 30.0,
+ "shortcuts": [],
+ "title": "My Landing Page",
+ "type": "Workspace"
+}

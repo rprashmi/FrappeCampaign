@@ -1,0 +1,206 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-11-21 11:18:41.306880",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_3l4h",
+  "landing_page",
+  "campaign",
+  "lead_type",
+  "full_name",
+  "phone",
+  "email",
+  "field1",
+  "field2",
+  "field3",
+  "field4",
+  "field5",
+  "field6",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "page_url",
+  "referrer",
+  "user_ip",
+  "user_agent",
+  "submitted_at",
+  "notes",
+  "content_info",
+  "form"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_3l4h",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "landing_page",
+   "fieldtype": "Link",
+   "label": "Landing Page",
+   "options": "Landing Page"
+  },
+  {
+   "fieldname": "campaign",
+   "fieldtype": "Link",
+   "label": "Campaign",
+   "options": "Campaigns"
+  },
+  {
+   "fieldname": "lead_type",
+   "fieldtype": "Select",
+   "label": "Lead Type",
+   "options": "Landing Page\nForms"
+  },
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "label": "Full Name"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Small Text",
+   "label": "Phone"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email"
+  },
+  {
+   "fieldname": "utm_source",
+   "fieldtype": "Data",
+   "label": "UTM Source"
+  },
+  {
+   "fieldname": "utm_medium",
+   "fieldtype": "Data",
+   "label": "UTM Medium"
+  },
+  {
+   "fieldname": "utm_campaign",
+   "fieldtype": "Data",
+   "label": "UTM Campaign"
+  },
+  {
+   "fieldname": "utm_term",
+   "fieldtype": "Data",
+   "label": "UTM Term"
+  },
+  {
+   "fieldname": "utm_content",
+   "fieldtype": "Data",
+   "label": "UTM Content"
+  },
+  {
+   "fieldname": "page_url",
+   "fieldtype": "Data",
+   "label": "Page URL"
+  },
+  {
+   "fieldname": "referrer",
+   "fieldtype": "Data",
+   "label": "Referrer"
+  },
+  {
+   "fieldname": "user_ip",
+   "fieldtype": "Data",
+   "label": "User IP"
+  },
+  {
+   "fieldname": "user_agent",
+   "fieldtype": "Small Text",
+   "label": "User Agent"
+  },
+  {
+   "fieldname": "submitted_at",
+   "fieldtype": "Datetime",
+   "label": "Submitted At"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "content_info",
+   "fieldtype": "Long Text",
+   "label": "Content_info"
+  },
+  {
+   "fieldname": "form",
+   "fieldtype": "Link",
+   "label": "Form",
+   "options": "Dynamic Form"
+  },
+  {
+   "fieldname": "field1",
+   "fieldtype": "Text",
+   "label": "Field1"
+  },
+  {
+   "fieldname": "field2",
+   "fieldtype": "Text",
+   "label": "Field2"
+  },
+  {
+   "fieldname": "field3",
+   "fieldtype": "Text",
+   "label": "Field3"
+  },
+  {
+   "fieldname": "field4",
+   "fieldtype": "Text",
+   "label": "Field4"
+  },
+  {
+   "fieldname": "field5",
+   "fieldtype": "Text",
+   "label": "Field5"
+  },
+  {
+   "fieldname": "field6",
+   "fieldtype": "Text",
+   "label": "Field6"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-02 15:08:35.840384",
+ "modified_by": "Administrator",
+ "module": "Campaign Management",
+ "name": "Campaign Lead",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "role": "Guest",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

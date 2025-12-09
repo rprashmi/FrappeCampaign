@@ -1,0 +1,27 @@
+<div class="campaign-home">
+    <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
+        <button class="btn btn-primary" onclick="showCreateMenu()">Create</button>
+    </div>
+
+    <div id="create-menu" style="display:none; margin-bottom:20px;">
+        <button class="btn btn-secondary" onclick="frappe.set_route('Form', 'Landing Page')">Create Landing Page</button>
+        <button class="btn btn-secondary" onclick="frappe.set_route('Form', 'Campaign Forms')">Create Form</button>
+        <button class="btn btn-secondary" onclick="frappe.set_route('Form', 'Campaigns')">Create Campaign</button>
+    </div>
+
+    <script>
+        function showCreateMenu() {
+            let menu = document.getElementById("create-menu");
+            menu.style.display = menu.style.display === "none" ? "block" : "none";
+        }
+    </script>
+
+    <h2>Landing Pages</h2>
+    <div>No landing pages yet.</div>
+
+    <h2 style="margin-top:40px;">Forms</h2>
+    <div>No forms yet.</div>
+
+    <h2 style="margin-top:40px;">Campaigns</h2>
+    <div>No campaigns yet.</div>
+</div>

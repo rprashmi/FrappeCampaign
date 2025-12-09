@@ -1,0 +1,136 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:form_title",
+ "creation": "2025-11-21 11:27:40.095273",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_mht0",
+  "form_title",
+  "form_description",
+  "slug",
+  "organisation",
+  "status",
+  "background_image",
+  "success_message",
+  "form_fields",
+  "views",
+  "submissions",
+  "create_crm_lead",
+  "published_url"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_mht0",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "form_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Form Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "form_description",
+   "fieldtype": "Text Editor",
+   "label": "Form Description"
+  },
+  {
+   "fieldname": "slug",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Slug",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPublished\nUnpublished"
+  },
+  {
+   "fieldname": "background_image",
+   "fieldtype": "Attach Image",
+   "label": "Background Image"
+  },
+  {
+   "fieldname": "success_message",
+   "fieldtype": "Small Text",
+   "label": "Success Message"
+  },
+  {
+   "fieldname": "form_fields",
+   "fieldtype": "Table",
+   "label": "Form Fields",
+   "options": "Dynamic Form Field"
+  },
+  {
+   "fieldname": "views",
+   "fieldtype": "Int",
+   "label": "Views"
+  },
+  {
+   "fieldname": "submissions",
+   "fieldtype": "Int",
+   "label": "Submissions"
+  },
+  {
+   "default": "0",
+   "fieldname": "create_crm_lead",
+   "fieldtype": "Check",
+   "label": "Create CRM Lead"
+  },
+  {
+   "fieldname": "published_url",
+   "fieldtype": "Data",
+   "label": "Published URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "organisation",
+   "fieldtype": "Data",
+   "label": "Organisation"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-26 13:48:24.634125",
+ "modified_by": "Administrator",
+ "module": "Campaign Management",
+ "name": "Dynamic Form",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "role": "Guest",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,0 +1,36 @@
+{
+ "app": "campaign_management",
+ "charts": [],
+ "content": "[{\"id\":\"e_PTCzaLv2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">My Campaigns</span>\",\"col\":9}},{\"id\":\"WK_8ZUELlJ\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Create Campaign Button\",\"col\":3}}]",
+ "creation": "2025-11-15 15:19:46.198845",
+ "custom_blocks": [
+  {
+   "custom_block_name": "Create Campaign Button",
+   "label": "Create Campaign Button"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "arrow-right",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "My Campaigns",
+ "links": [],
+ "modified": "2025-11-25 14:45:50.812867",
+ "modified_by": "Administrator",
+ "module": "Campaign Management",
+ "name": "My Campaigns",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "Campaign Management",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 29.0,
+ "shortcuts": [],
+ "title": "My Campaigns",
+ "type": "Workspace"
+}
