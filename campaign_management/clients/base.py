@@ -114,10 +114,11 @@ def link_web_visitor_to_lead(client_id, lead_name):
     except Exception as e:
         frappe.logger().error(f"Failed to link visitor {client_id}: {str(e)}")
 
+
 def add_activity_to_lead(lead_name, activity_data):
     """
     Add timeline activity to lead using Communication
-    This shows in the Activity tab
+    Enhanced with CTA tracking details
     """
     try:
         # Check if lead exists
@@ -127,12 +128,11 @@ def add_activity_to_lead(lead_name, activity_data):
             lead_email = frappe.db.get_value("CRM Lead", lead_name, "email") or ""
         else:
             # Lead doesn't exist yet - link to Web Visitor instead
-            # We'll re-link these later when lead is created
             client_id = activity_data.get('client_id')
             if not client_id:
                 frappe.logger().error(f"❌ No lead and no client_id provided")
                 return False
-            
+
             visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
             if not visitor_name:
                 # Create visitor if doesn't exist
@@ -147,7 +147,7 @@ def add_activity_to_lead(lead_name, activity_data):
                 frappe.db.commit()
                 visitor_name = visitor.name
                 frappe.logger().info(f"✅ Created Web Visitor: {visitor_name}")
-            
+
             reference_doctype = "Web Visitor"
             reference_name = visitor_name
             lead_email = ""
@@ -156,6 +156,12 @@ def add_activity_to_lead(lead_name, activity_data):
         activity_type = activity_data.get('activity_type', 'Web Activity')
         page_url = activity_data.get('page_url', '')
         product_name = activity_data.get('product_name', '').strip()
+        
+        # Enhanced CTA tracking
+        cta_name = activity_data.get('cta_name', '')
+        cta_location = activity_data.get('cta_location', '')
+        cta_type = activity_data.get('cta_type', '')
+        
         browser = activity_data.get('browser', '')
         device = activity_data.get('device', '')
         geo_location = activity_data.get('geo_location', '')
@@ -164,11 +170,20 @@ def add_activity_to_lead(lead_name, activity_data):
         utm_medium = activity_data.get('utm_medium')
         utm_campaign = activity_data.get('utm_campaign')
 
-        # Build clean, readable content
+        # Build clean, readable content with enhanced CTA info
         lines = [f"<strong>{activity_type}</strong>"]
 
         if page_url:
             lines.append(f"Page: <a href='{page_url}' target='_blank'>{page_url}</a>")
+        
+        # Enhanced CTA information display
+        if cta_name:
+            lines.append(f"<strong>CTA:</strong> {cta_name}")
+        if cta_location:
+            lines.append(f"<strong>Location:</strong> {cta_location}")
+        if cta_type:
+            lines.append(f"<strong>Type:</strong> {cta_type}")
+            
         if product_name:
             lines.append(f"Product: <strong>{product_name}</strong>")
         if browser:
@@ -194,7 +209,7 @@ def add_activity_to_lead(lead_name, activity_data):
             "doctype": "Communication",
             "communication_type": "Communication",
             "communication_medium": "Other",
-            "subject": activity_type,
+            "subject": activity_type + (f" - {cta_name}" if cta_name else ""),
             "content": content,
             "reference_doctype": reference_doctype,
             "reference_name": reference_name,
@@ -213,21 +228,21 @@ def add_activity_to_lead(lead_name, activity_data):
         frappe.logger().error(f"❌ Failed to add activity: {str(e)}")
         return False
 
+
 def link_historical_activities_to_lead(client_id, lead_name):
     """
-    When a lead is created, find all Web Visitor activities 
+    When a lead is created, find all Web Visitor activities
     and link them to this lead retroactively
     """
     try:
         # Get the Web Visitor
         visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
-        
+
         if not visitor_name:
             frappe.logger().info(f"No Web Visitor found for client_id: {client_id}")
             return
-        
-        # Find all Communications linked to this Web Visitor but NOT yet linked to a Lead
-        # These are the "orphan" activities from before lead creation
+
+        # Find all Communications linked to this Web Visitor
         communications = frappe.get_all(
             "Communication",
             filters={
@@ -236,34 +251,34 @@ def link_historical_activities_to_lead(client_id, lead_name):
             },
             fields=["name", "subject", "content", "creation"]
         )
-        
+
         if not communications:
             frappe.logger().info(f"No historical activities found for visitor: {visitor_name}")
             return
-        
+
         frappe.logger().info(f"Found {len(communications)} historical activities to link")
-        
+
         # Re-link each Communication to the Lead
         for comm in communications:
             try:
                 comm_doc = frappe.get_doc("Communication", comm.name)
                 comm_doc.reference_doctype = "CRM Lead"
                 comm_doc.reference_name = lead_name
-                
+
                 # Update recipient to lead's email
                 lead_email = frappe.db.get_value("CRM Lead", lead_name, "email") or ""
                 if lead_email:
                     comm_doc.recipients = lead_email
-                
+
                 comm_doc.save(ignore_permissions=True)
                 frappe.logger().info(f"✅ Linked activity {comm.name} to lead {lead_name}")
             except Exception as e:
                 frappe.logger().error(f"Failed to link activity {comm.name}: {str(e)}")
                 continue
-        
+
         frappe.db.commit()
         frappe.logger().info(f"✅ Successfully linked {len(communications)} historical activities to lead {lead_name}")
-        
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Link Historical Activities Failed")
         frappe.logger().error(f"❌ Failed to link historical activities: {str(e)}")
