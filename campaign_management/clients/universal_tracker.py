@@ -78,7 +78,7 @@ def identify_organization(data):
         return ORGANIZATION_CONFIG[org_identifier]
 
     # Method 2: Check page_url domain
-    page_url = str(data.get("page_url") or "").lower()
+    page_url = str(data.get("page_url") or data.get("page_location") or "").lower()
     if page_url:
         try:
             parsed = urlparse(page_url)
@@ -87,7 +87,7 @@ def identify_organization(data):
             for org_key, config in ORGANIZATION_CONFIG.items():
                 for configured_domain in config["domains"]:
                     if configured_domain in domain:
-                        frappe.logger().info(f"✅ Identified from page_url: {org_key}")
+                        frappe.logger().info(f"✅ Identified from page_url: {org_key} (domain: {domain})")
                         return config
 
                 for keyword in config["keywords"]:
@@ -174,7 +174,7 @@ def submit_form(**kwargs):
         data = get_request_data()
         data.update(kwargs)
 
-        frappe.logger().info(f"📊 Data: {json.dumps(data, indent=2)}")
+        frappe.logger().info(f"📊 Received Data: {json.dumps(data, indent=2)}")
 
         # Identify organization
         org_config = identify_organization(data)
@@ -190,11 +190,11 @@ def submit_form(**kwargs):
         full_name = str(data.get("full_name") or data.get("name") or "").strip()
         first_name = str(data.get("firstName") or data.get("first_name") or "").strip()
         last_name = str(data.get("lastName") or data.get("last_name") or "").strip()
-        
+
         # Combine name if split
         if first_name and not full_name:
             full_name = f"{first_name} {last_name}".strip()
-        
+
         email = str(data.get("email") or data.get("email_id") or "").strip()
         phone = str(data.get("phone") or data.get("mobile_no") or "").strip()
         company = str(data.get("company") or "").strip()
@@ -202,6 +202,8 @@ def submit_form(**kwargs):
 
         client_id_raw = data.get("ga_client_id") or data.get("client_id")
         client_id = str(client_id_raw) if client_id_raw else None
+
+        frappe.logger().info(f"✅ Extracted: name={full_name}, first={first_name}, last={last_name}, email={email}, client_id={client_id}")
 
         # E-commerce fields
         cart_items = str(data.get("cart_items") or "")
@@ -216,19 +218,21 @@ def submit_form(**kwargs):
 
         cta_source = str(data.get("cta_source") or "Direct Visit")
 
-        frappe.logger().info(f"📝 Name: {full_name}, Email: {email}")
-
         # Validation
         if not full_name and not first_name:
+            frappe.logger().error("❌ Validation failed: Name is required")
             return {"success": False, "message": "Name is required"}
         if not email and not phone:
+            frappe.logger().error("❌ Validation failed: Email or Phone is required")
             return {"success": False, "message": "Email or Phone is required"}
 
         # Get tracking info
         user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
         ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
-        page_url = str(data.get("page_url") or "")
+        page_url = str(data.get("page_url") or data.get("page_location") or "")
         referrer = str(data.get("referrer") or "")
+
+        frappe.logger().info(f"🌐 Tracking: UA={user_agent[:50]}..., IP={ip_address}, page={page_url}")
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
@@ -304,10 +308,11 @@ def submit_form(**kwargs):
 
         if existing_lead:
             # UPDATE EXISTING LEAD
-            frappe.logger().info(f"🔄 Updating lead: {existing_lead.name}")
+            frappe.logger().info(f"🔄 Updating existing lead: {existing_lead.name}")
 
             lead = frappe.get_doc("CRM Lead", existing_lead.name)
 
+            # Update contact info if missing
             if email and not lead.email:
                 lead.email = email
             if phone and not lead.mobile_no:
@@ -327,6 +332,8 @@ def submit_form(**kwargs):
 
             lead.add_comment("Info", comment)
             lead.save(ignore_permissions=True)
+
+            frappe.logger().info(f"✅ Lead updated: {lead.name}")
 
             # Add activity
             add_activity_to_lead(lead.name, {
@@ -354,7 +361,7 @@ def submit_form(**kwargs):
 
         else:
             # CREATE NEW LEAD
-            frappe.logger().info(f"➕ Creating lead: {full_name}")
+            frappe.logger().info(f"➕ Creating new lead: {full_name or (first_name + ' ' + last_name)}")
 
             # Parse name
             if not first_name and full_name:
@@ -362,12 +369,14 @@ def submit_form(**kwargs):
                 first_name = name_parts[0] if name_parts else full_name
                 last_name = name_parts[1] if len(name_parts) > 1 else ""
 
+            frappe.logger().info(f"📝 Name parsing: first={first_name}, last={last_name}")
+
             lead = frappe.get_doc({
                 "doctype": "CRM Lead",
                 "first_name": first_name,
                 "last_name": last_name,
                 "email": email if email else None,
-                "mobile_no": phone,
+                "mobile_no": phone if phone else None,
                 "status": "New",
                 "source": source,
                 "website": page_url,
@@ -382,12 +391,13 @@ def submit_form(**kwargs):
             lead.insert(ignore_permissions=True)
             frappe.db.commit()
 
-            frappe.logger().info(f"✅ Lead created: {lead.name}")
+            frappe.logger().info(f"✅ Lead created: {lead.name} with org: {org_name}")
 
-            # Link Web Visitor
+            # Link Web Visitor - 🔴 CRITICAL FIX: use lead.name not lead_name!
             if client_id:
+                frappe.logger().info(f"🔗 Linking web visitor for client_id: {client_id}")
                 link_web_visitor_to_lead(client_id, lead.name)
-                link_historical_activities_to_lead(client_id, lead.name)
+                link_historical_activities_to_lead(client_id, lead.name)  # ✅ FIXED!
 
             # Add first activity
             if org_type == "ecommerce":
@@ -396,6 +406,8 @@ def submit_form(**kwargs):
             else:
                 activity_type = f"📝 First {request_type} ({form_name})"
                 product_info = interested_features
+
+            frappe.logger().info(f"📝 Adding first activity: {activity_type}")
 
             add_activity_to_lead(lead.name, {
                 "activity_type": activity_type,
@@ -413,6 +425,8 @@ def submit_form(**kwargs):
 
             frappe.db.commit()
 
+            frappe.logger().info(f"✅ Activity added to lead: {lead.name}")
+
             return {
                 "success": True,
                 "message": "Thank you! We'll contact you soon.",
@@ -422,7 +436,7 @@ def submit_form(**kwargs):
 
     except Exception as e:
         frappe.logger().error("=" * 80)
-        frappe.logger().error(f"❌ ERROR: {str(e)}")
+        frappe.logger().error(f"❌ FORM SUBMISSION ERROR: {str(e)}")
         frappe.logger().error(f"❌ Traceback: {frappe.get_traceback()}")
         frappe.logger().error("=" * 80)
         frappe.log_error(frappe.get_traceback(), "Universal Form Error")
@@ -449,18 +463,21 @@ def track_activity(**kwargs):
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
 
-        frappe.logger().info(f"📊 Activity for: {org_name}")
+        frappe.logger().info(f"📊 Activity tracking for: {org_name}")
 
-        client_id = data.get("client_id")
+        client_id = data.get("ga_client_id") or data.get("client_id")  # ✅ Check both!
         activity_type = str(data.get("activity_type") or data.get("event") or "")
-        page_url = str(data.get("page_url") or "")
+        page_url = str(data.get("page_url") or data.get("page_location") or "")
         product_name = str(data.get("product_name") or "")
         cta_name = str(data.get("cta_name") or "")
         cta_location = str(data.get("cta_location") or "")
         feature_name = str(data.get("feature_name") or "")
         service_name = str(data.get("service_name") or "")
-        
+
+        frappe.logger().info(f"📊 Activity: {activity_type}, client_id={client_id}")
+
         if not client_id or not activity_type:
+            frappe.logger().error("❌ Missing client_id or activity_type")
             return {"success": False, "message": "client_id and activity_type required"}
 
         # Handle scroll events
@@ -488,14 +505,20 @@ def track_activity(**kwargs):
         # Get or create visitor
         visitor = get_or_create_web_visitor(client_id, data)
         frappe.db.set_value("Web Visitor", visitor.name, "last_seen", now(), update_modified=False)
+        
+        frappe.logger().info(f"✅ Web Visitor: {visitor.name}")
 
         # Find linked lead FOR THIS ORGANIZATION
         lead_name = None
 
         if visitor.converted_lead:
-            lead_org = frappe.db.get_value("CRM Lead", visitor.converted_lead, "organization")
-            if lead_org == org_name:
-                lead_name = visitor.converted_lead
+            try:
+                lead_org = frappe.db.get_value("CRM Lead", visitor.converted_lead, "organization")
+                if lead_org == org_name:
+                    lead_name = visitor.converted_lead
+                    frappe.logger().info(f"✅ Found lead from visitor.converted_lead: {lead_name}")
+            except Exception as e:
+                frappe.logger().error(f"Error checking converted_lead: {str(e)}")
 
         if not lead_name and client_id:
             try:
@@ -505,6 +528,7 @@ def track_activity(**kwargs):
                     "name"
                 )
                 if lead_name:
+                    frappe.logger().info(f"✅ Found lead by ga_client_id: {lead_name}")
                     link_web_visitor_to_lead(client_id, lead_name)
             except Exception as e:
                 frappe.logger().error(f"Error finding lead: {str(e)}")
@@ -513,6 +537,8 @@ def track_activity(**kwargs):
         tracked_item = product_name or feature_name or service_name or ""
 
         # Add activity
+        frappe.logger().info(f"📝 Adding activity: {activity_type} to lead: {lead_name or 'No Lead Yet'}")
+        
         success = add_activity_to_lead(lead_name, {
             "activity_type": activity_type,
             "page_url": page_url,
@@ -530,6 +556,8 @@ def track_activity(**kwargs):
 
         frappe.db.commit()
 
+        frappe.logger().info(f"✅ Activity saved: {success}")
+
         return {
             "success": True,
             "visitor": visitor.name,
@@ -539,6 +567,7 @@ def track_activity(**kwargs):
         }
 
     except Exception as e:
-        frappe.logger().error(f"❌ TRACKING ERROR: {str(e)}")
+        frappe.logger().error(f"❌ ACTIVITY TRACKING ERROR: {str(e)}")
+        frappe.logger().error(f"❌ Traceback: {frappe.get_traceback()}")
         frappe.log_error(frappe.get_traceback(), "Activity Tracking Error")
         return {"success": False, "message": str(e)}
