@@ -33,7 +33,7 @@ ORGANIZATION_CONFIG = {
         "org_website": "walue.com",
         "source": "Walue Website",
         "type": "saas",
-        "domains": ["walue.com", "waluetracking.m.frappe.cloud", "walue.biz"],
+        "domains": ["walue.com", "waluetracking.m.frappe.cloud", "waluetracking.web.app"],
         "keywords": ["walue"]
     }
 }
