@@ -1,12 +1,11 @@
 """
-Universal Tracker - Smart Central Handler with Cross-Device Mapping
-Auto-detects organization from URL/domain and routes accordingly
-Works for ALL websites: QuickShop, Walue, and any future clients
+Universal Tracker - FIXED VERSION
+Enhanced: UTM parameter capture, Browser detection, Device tracking
 """
 import frappe
 from frappe.utils import now
 import json
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from campaign_management.clients.base import (
     extract_browser_details,
     get_geo_info_from_ip,
@@ -63,6 +62,36 @@ ORGANIZATION_CONFIG = {
 }
 
 
+def extract_utm_from_url(url):
+    """
+    Extract UTM parameters directly from URL
+    This is a BACKUP method when GTM doesn't pass them
+    """
+    utm_params = {
+        'utm_source': None,
+        'utm_medium': None,
+        'utm_campaign': None,
+        'utm_term': None,
+        'utm_content': None
+    }
+    
+    if not url or '?' not in url:
+        return utm_params
+    
+    try:
+        parsed = urlparse(url)
+        query_params = parse_qs(parsed.query)
+        
+        for key in utm_params.keys():
+            if key in query_params:
+                utm_params[key] = query_params[key][0]
+                frappe.logger().info(f"✅ Extracted from URL: {key} = {utm_params[key]}")
+    except Exception as e:
+        frappe.logger().error(f"Error extracting UTM from URL: {str(e)}")
+    
+    return utm_params
+
+
 def determine_source(data, org_config):
     """
     🎯 Smart Source Detection - Maps to Frappe CRM standard sources
@@ -74,16 +103,16 @@ def determine_source(data, org_config):
         if "campaign" in utm_source:
             frappe.logger().info(f"✅ Source from UTM: {utm_source} → Campaign")
             return "Campaign"
-        
+
         for key, crm_source in SOURCE_MAPPING.items():
             if key in utm_source:
                 frappe.logger().info(f"✅ Source from UTM: {utm_source} → {crm_source}")
                 return crm_source
-        
+
         if any(term in utm_source for term in ['promo', 'offer', 'sale', 'launch']):
             frappe.logger().info(f"✅ Source from UTM (promotional): {utm_source} → Campaign")
             return "Campaign"
-    
+
     # Method 2: Check UTM medium
     utm_medium = str(data.get("utm_medium") or "").lower().strip()
     if utm_medium:
@@ -93,19 +122,19 @@ def determine_source(data, org_config):
         elif utm_medium == 'email':
             frappe.logger().info(f"✅ Source from UTM medium: {utm_medium} → Mass Mailing")
             return "Mass Mailing"
-    
+
     # Method 3: Check referrer
     referrer = str(data.get("referrer") or "").lower().strip()
     if referrer and referrer != "direct":
         try:
             parsed = urlparse(referrer)
             domain = parsed.netloc.lower()
-            
+
             for key, crm_source in SOURCE_MAPPING.items():
                 if key in domain:
                     frappe.logger().info(f"✅ Source from referrer: {referrer} → {crm_source}")
                     return crm_source
-            
+
             org_domains = org_config.get("domains", [])
             is_external = not any(org_domain in domain for org_domain in org_domains)
             if is_external and domain:
@@ -113,13 +142,13 @@ def determine_source(data, org_config):
                 return "Supplier Reference"
         except Exception as e:
             frappe.logger().error(f"Error parsing referrer: {str(e)}")
-    
+
     # Method 4: Check if user is logged in
     user_email = data.get("user_email") or data.get("email")
     if user_email:
         frappe.logger().info(f"✅ Logged in user → Website")
         return "Website"
-    
+
     # Default: Website
     frappe.logger().info(f"✅ Default source → Website")
     return "Website"
@@ -131,7 +160,7 @@ def find_lead_cross_device(email, client_id, org_name):
     Priority: Email > Client ID
     """
     existing_lead = None
-    
+
     # Priority 1: Find by email (most reliable)
     if email:
         try:
@@ -143,17 +172,17 @@ def find_lead_cross_device(email, client_id, org_name):
             )
             if existing_lead:
                 frappe.logger().info(f"✅ Cross-device match by EMAIL: {existing_lead.name}")
-                
+
                 # Device switch detected - update client_id
                 if client_id and existing_lead.ga_client_id != client_id:
                     frappe.logger().info(f"🔄 Device switch! Old: {existing_lead.ga_client_id}, New: {client_id}")
                     frappe.db.set_value("CRM Lead", existing_lead.name, "ga_client_id", client_id, update_modified=False)
                     link_web_visitor_to_lead(client_id, existing_lead.name)
-                
+
                 return existing_lead
         except Exception as e:
             frappe.logger().error(f"Error finding by email: {str(e)}")
-    
+
     # Priority 2: Find by client_id
     if not existing_lead and client_id:
         try:
@@ -168,7 +197,7 @@ def find_lead_cross_device(email, client_id, org_name):
                 return existing_lead
         except Exception as e:
             frappe.logger().error(f"Error finding by client_id: {str(e)}")
-    
+
     return None
 
 
@@ -203,7 +232,6 @@ def get_request_data():
 def identify_organization(data):
     """
     🎯 SMART DETECTION: Automatically identify organization
-    YOUR ORIGINAL LOGIC - KEPT EXACTLY AS IS
     """
     # Method 1: Explicit organization identifier
     org_identifier = str(data.get("organization") or "").lower().strip()
@@ -292,36 +320,34 @@ def ensure_organization_exists(org_config):
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def user_login(**kwargs):
     """
-    🔐 NEW: User Login Endpoint - Links activities across devices
+    🔐 User Login Endpoint - Links activities across devices
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
-    
+
     try:
         data = get_request_data()
         data.update(kwargs)
-        
+
         email = str(data.get("email") or "").strip().lower()
         client_id = str(data.get("ga_client_id") or data.get("client_id") or "")
-        
+
         if not email or not client_id:
             return {"success": False, "message": "Email and client_id required"}
-        
+
         # Identify organization
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
-        
+
         frappe.logger().info(f"🔐 Login: {email} with client_id: {client_id} for org: {org_name}")
-        
+
         # Find existing lead by email (cross-device)
         lead = find_lead_cross_device(email, client_id, org_name)
-        
+
         if lead:
             frappe.logger().info(f"✅ Login successful - linked to lead: {lead['name']}")
-            
-            # Link historical activities from this device
             link_historical_activities_to_lead(client_id, lead['name'])
-            
+
             return {
                 "success": True,
                 "message": "Login successful",
@@ -331,13 +357,13 @@ def user_login(**kwargs):
         else:
             # Create new lead
             frappe.logger().info(f"➕ Creating new lead for: {email}")
-            
+
             name_parts = email.split('@')[0].split('.')
             first_name = name_parts[0].title() if name_parts else email.split('@')[0].title()
             last_name = name_parts[1].title() if len(name_parts) > 1 else ""
-            
+
             source = determine_source(data, org_config)
-            
+
             new_lead = frappe.get_doc({
                 "doctype": "CRM Lead",
                 "first_name": first_name,
@@ -350,20 +376,19 @@ def user_login(**kwargs):
             })
             new_lead.insert(ignore_permissions=True)
             frappe.db.commit()
-            
-            # Link web visitor and activities
+
             link_web_visitor_to_lead(client_id, new_lead.name)
             link_historical_activities_to_lead(client_id, new_lead.name)
-            
+
             frappe.logger().info(f"✅ New lead created: {new_lead.name}")
-            
+
             return {
                 "success": True,
                 "message": "Account created successfully",
                 "lead_id": new_lead.name,
                 "user_name": first_name
             }
-            
+
     except Exception as e:
         frappe.logger().error(f"❌ Login error: {str(e)}")
         frappe.log_error(frappe.get_traceback(), "User Login Error")
@@ -374,6 +399,7 @@ def user_login(**kwargs):
 def submit_form(**kwargs):
     """
     🎯 UNIVERSAL FORM HANDLER
+    FIXED: Enhanced UTM parameter capture
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
@@ -390,16 +416,15 @@ def submit_form(**kwargs):
 
         frappe.logger().info(f"📊 Received Data: {json.dumps(data, indent=2)}")
 
-        # Identify organization (YOUR ORIGINAL LOGIC)
+        # Identify organization
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
         org_type = org_config["type"]
 
         frappe.logger().info(f"✅ Organization: {org_name} ({org_type})")
-
         ensure_organization_exists(org_config)
 
-        # NEW: Determine smart source
+        # Determine smart source
         source = determine_source(data, org_config)
         frappe.logger().info(f"✅ Determined Source: {source}")
 
@@ -431,7 +456,6 @@ def submit_form(**kwargs):
         interested_features = str(data.get("interested_features") or "")
         company_size = str(data.get("company_size") or "")
         use_case = str(data.get("use_case") or "")
-
         cta_source = str(data.get("cta_source") or "Direct Visit")
 
         # Validation
@@ -450,7 +474,17 @@ def submit_form(**kwargs):
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
+        
+        # CRITICAL FIX: Get UTM params using enhanced function
         utm_params = get_utm_params_from_data(data)
+        
+        # BACKUP: Extract from URL if not in data
+        if not any(utm_params.values()) and page_url:
+            frappe.logger().info("⚠️ UTM not in data, extracting from URL...")
+            url_utm = extract_utm_from_url(page_url)
+            utm_params.update(url_utm)
+
+        frappe.logger().info(f"📊 Final UTM Params: {utm_params}")
 
         geo_location = ""
         if geo_info.get('city') and geo_info.get('country'):
@@ -470,6 +504,7 @@ def submit_form(**kwargs):
                 "city": geo_info.get('city'),
                 "ip_address": ip_address
             },
+            "utm": utm_params,
             "submission_timestamp": now(),
             "organization_type": org_type,
             "cta_source": cta_source,
@@ -491,7 +526,7 @@ def submit_form(**kwargs):
                 "message": message
             })
 
-        # NEW: Cross-device lead detection
+        # Cross-device lead detection
         existing_lead = find_lead_cross_device(email, client_id, org_name)
 
         if existing_lead:
@@ -529,6 +564,7 @@ def submit_form(**kwargs):
                 "geo_location": geo_location,
                 "referrer": referrer,
                 "client_id": client_id,
+                "user_agent": user_agent,
                 **utm_params
             })
 
@@ -571,7 +607,7 @@ def submit_form(**kwargs):
             lead.insert(ignore_permissions=True)
             frappe.db.commit()
 
-            frappe.logger().info(f"✅ Lead created: {lead.name} with source: {source}")
+            frappe.logger().info(f"✅ Lead created: {lead.name} with UTM: {utm_params}")
 
             if client_id:
                 link_web_visitor_to_lead(client_id, lead.name)
@@ -595,6 +631,7 @@ def submit_form(**kwargs):
                 "geo_location": geo_location,
                 "referrer": referrer,
                 "client_id": client_id,
+                "user_agent": user_agent,
                 **utm_params
             })
 
@@ -604,7 +641,8 @@ def submit_form(**kwargs):
                 "success": True,
                 "message": "Thank you! We'll contact you soon.",
                 "lead": lead.name,
-                "organization": org_name
+                "organization": org_name,
+                "utm_captured": utm_params
             }
 
     except Exception as e:
@@ -624,6 +662,7 @@ def submit_form(**kwargs):
 def track_activity(**kwargs):
     """
     🎯 UNIVERSAL ACTIVITY TRACKER
+    FIXED: Enhanced UTM and device tracking
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
@@ -632,7 +671,7 @@ def track_activity(**kwargs):
         data = get_request_data()
         data.update(kwargs)
 
-        # Identify organization (YOUR ORIGINAL LOGIC)
+        # Identify organization
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
 
@@ -656,7 +695,7 @@ def track_activity(**kwargs):
         if "scroll" in activity_type.lower() and percent_scrolled:
             if isinstance(percent_scrolled, str):
                 percent_scrolled = percent_scrolled.replace("scroll_", "")
-            activity_type = f"📜 Scroll {percent_scrolled}%"
+            activity_type = f" Scroll {percent_scrolled}%"
 
         user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
         ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
@@ -665,6 +704,11 @@ def track_activity(**kwargs):
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
         utm_params = get_utm_params_from_data(data)
+        
+        # BACKUP: Extract from URL
+        if not any(utm_params.values()) and page_url:
+            url_utm = extract_utm_from_url(page_url)
+            utm_params.update(url_utm)
 
         geo_location = ""
         if geo_info.get('city') and geo_info.get('country'):
@@ -672,10 +716,12 @@ def track_activity(**kwargs):
         elif geo_info.get('country'):
             geo_location = geo_info['country']
 
+        # CRITICAL: Pass user_agent to get_or_create_web_visitor
+        data['user_agent'] = user_agent
         visitor = get_or_create_web_visitor(client_id, data)
         frappe.db.set_value("Web Visitor", visitor.name, "last_seen", now(), update_modified=False)
 
-        # Find linked lead FOR THIS ORGANIZATION
+        # Find linked lead
         lead_name = None
 
         if visitor.converted_lead:
@@ -712,6 +758,7 @@ def track_activity(**kwargs):
             "geo_location": geo_location,
             "referrer": referrer,
             "client_id": client_id,
+            "user_agent": user_agent,
             **utm_params
         })
 
@@ -722,7 +769,8 @@ def track_activity(**kwargs):
             "visitor": visitor.name,
             "linked_lead": lead_name,
             "organization": org_name,
-            "activity_saved": success
+            "activity_saved": success,
+            "device_detected": browser_details['device']
         }
 
     except Exception as e:

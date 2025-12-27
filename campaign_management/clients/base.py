@@ -1,39 +1,119 @@
 """
-Shared utilities for all client APIs - FINAL VERSION
+Shared utilities for all client APIs - ENHANCED VERSION
+Fixed: Browser detection, Device detection, UTM tracking
 """
 import frappe
 from frappe.utils import now, format_datetime
 import json
+import re
 
 
 def extract_browser_details(user_agent):
-    """Extract browser, OS, device from user agent"""
+    """
+    Enhanced browser, OS, device detection with better accuracy
+    """
+    if not user_agent:
+        return {
+            "browser": "Unknown",
+            "os": "Unknown",
+            "device": "Desktop",
+            "user_agent": ""
+        }
+    
+    user_agent = str(user_agent)
     browser = "Unknown"
     os = "Unknown"
     device = "Desktop"
-
-    if "Chrome" in user_agent:
-        browser = "Chrome"
-    elif "Firefox" in user_agent:
-        browser = "Firefox"
-    elif "Safari" in user_agent and "Chrome" not in user_agent:
-        browser = "Safari"
-    elif "Edge" in user_agent:
+    
+    # ============================================
+    # BROWSER DETECTION (Order matters!)
+    # ============================================
+    if "Edg/" in user_agent or "Edge/" in user_agent:
         browser = "Edge"
-
-    if "Windows" in user_agent:
+    elif "OPR/" in user_agent or "Opera" in user_agent:
+        browser = "Opera"
+    elif "Chrome/" in user_agent and "Safari/" in user_agent:
+        # Chrome-based browsers
+        if "Brave" in user_agent:
+            browser = "Brave"
+        else:
+            browser = "Chrome"
+    elif "Safari/" in user_agent and "Chrome" not in user_agent:
+        browser = "Safari"
+    elif "Firefox/" in user_agent:
+        browser = "Firefox"
+    elif "MSIE" in user_agent or "Trident/" in user_agent:
+        browser = "Internet Explorer"
+    
+    # ============================================
+    # OPERATING SYSTEM DETECTION
+    # ============================================
+    if "Windows NT 10" in user_agent:
+        os = "Windows 10"
+    elif "Windows NT 6.3" in user_agent:
+        os = "Windows 8.1"
+    elif "Windows NT 6.2" in user_agent:
+        os = "Windows 8"
+    elif "Windows NT 6.1" in user_agent:
+        os = "Windows 7"
+    elif "Windows" in user_agent:
         os = "Windows"
-    elif "Mac" in user_agent:
-        os = "macOS"
+    elif "Mac OS X" in user_agent:
+        # Extract macOS version
+        mac_version = re.search(r"Mac OS X (\d+[._]\d+)", user_agent)
+        if mac_version:
+            version = mac_version.group(1).replace('_', '.')
+            os = f"macOS {version}"
+        else:
+            os = "macOS"
+    elif "Android" in user_agent:
+        # Extract Android version
+        android_version = re.search(r"Android (\d+\.?\d*)", user_agent)
+        if android_version:
+            os = f"Android {android_version.group(1)}"
+        else:
+            os = "Android"
+        device = "Mobile"
+    elif "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent:
+        # Extract iOS version
+        ios_version = re.search(r"OS (\d+_\d+)", user_agent)
+        if ios_version:
+            version = ios_version.group(1).replace('_', '.')
+            os = f"iOS {version}"
+        else:
+            os = "iOS"
+        device = "Tablet" if "iPad" in user_agent else "Mobile"
     elif "Linux" in user_agent:
         os = "Linux"
-    elif "Android" in user_agent:
-        os = "Android"
+    elif "Ubuntu" in user_agent:
+        os = "Ubuntu"
+    elif "CrOS" in user_agent:
+        os = "Chrome OS"
+    
+    # ============================================
+    # DEVICE TYPE DETECTION
+    # ============================================
+    # Mobile indicators
+    mobile_indicators = [
+        "Mobile", "Android", "iPhone", "iPod", "BlackBerry",
+        "Windows Phone", "Opera Mini", "IEMobile"
+    ]
+    
+    # Tablet indicators
+    tablet_indicators = ["iPad", "Tablet", "PlayBook", "Kindle"]
+    
+    if any(indicator in user_agent for indicator in tablet_indicators):
+        device = "Tablet"
+    elif any(indicator in user_agent for indicator in mobile_indicators):
         device = "Mobile"
-    elif "iPhone" in user_agent or "iPad" in user_agent:
-        os = "iOS"
-        device = "Mobile" if "iPhone" in user_agent else "Tablet"
-
+    else:
+        device = "Desktop"
+    
+    # Additional mobile detection for Android
+    if "Android" in user_agent and "Mobile" not in user_agent:
+        # Android tablets don't have "Mobile" in UA
+        device = "Tablet"
+    
     return {
         "browser": browser,
         "os": os,
@@ -81,22 +161,42 @@ def get_geo_info_from_ip(ip_address):
 
 
 def get_or_create_web_visitor(client_id, data):
-    """Get existing or create new Web Visitor"""
+    """
+    Get existing or create new Web Visitor
+    FIXED: Now updates device on each visit
+    """
     visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
 
     if visitor_name:
         visitor = frappe.get_doc("Web Visitor", visitor_name)
+        
+        # UPDATE DEVICE TYPE on each visit (Fix for cross-device)
+        user_agent = data.get("user_agent") or ""
+        if user_agent:
+            browser_details = extract_browser_details(user_agent)
+            current_device = browser_details['device']
+            
+            # Update if device changed
+            if visitor.device != current_device:
+                frappe.logger().info(f"🔄 Device update: {visitor.device} → {current_device}")
+                frappe.db.set_value("Web Visitor", visitor_name, "device", current_device, update_modified=False)
+                
     else:
+        # Extract browser details for new visitor
+        user_agent = data.get("user_agent") or ""
+        browser_details = extract_browser_details(user_agent)
+        
         visitor = frappe.get_doc({
             "doctype": "Web Visitor",
             "client_id": client_id,
             "website": data.get("page_url", "").split("?")[0],
+            "device": browser_details['device'],  # Set initial device
             "first_seen": now(),
             "last_seen": now()
         })
         visitor.insert(ignore_permissions=True)
         frappe.db.commit()
-        frappe.logger().info(f"✅ Created Web Visitor: {visitor.name}")
+        frappe.logger().info(f"✅ Created Web Visitor: {visitor.name} (Device: {browser_details['device']})")
 
     return visitor
 
@@ -119,6 +219,7 @@ def add_activity_to_lead(lead_name, activity_data):
     """
     Add timeline activity to lead using Communication
     Enhanced with CTA tracking details
+    FIXED: Now properly records device type
     """
     try:
         # Check if lead exists
@@ -136,10 +237,14 @@ def add_activity_to_lead(lead_name, activity_data):
             visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
             if not visitor_name:
                 # Create visitor if doesn't exist
+                user_agent = activity_data.get('user_agent', '')
+                browser_details = extract_browser_details(user_agent)
+                
                 visitor = frappe.get_doc({
                     "doctype": "Web Visitor",
                     "client_id": client_id,
                     "website": activity_data.get("page_url", "").split("?")[0],
+                    "device": browser_details['device'],
                     "first_seen": now(),
                     "last_seen": now()
                 })
@@ -156,12 +261,12 @@ def add_activity_to_lead(lead_name, activity_data):
         activity_type = activity_data.get('activity_type', 'Web Activity')
         page_url = activity_data.get('page_url', '')
         product_name = activity_data.get('product_name', '').strip()
-        
+
         # Enhanced CTA tracking
         cta_name = activity_data.get('cta_name', '')
         cta_location = activity_data.get('cta_location', '')
         cta_type = activity_data.get('cta_type', '')
-        
+
         browser = activity_data.get('browser', '')
         device = activity_data.get('device', '')
         geo_location = activity_data.get('geo_location', '')
@@ -175,7 +280,7 @@ def add_activity_to_lead(lead_name, activity_data):
 
         if page_url:
             lines.append(f"Page: <a href='{page_url}' target='_blank'>{page_url}</a>")
-        
+
         # Enhanced CTA information display
         if cta_name:
             lines.append(f"<strong>CTA:</strong> {cta_name}")
@@ -183,7 +288,7 @@ def add_activity_to_lead(lead_name, activity_data):
             lines.append(f"<strong>Location:</strong> {cta_location}")
         if cta_type:
             lines.append(f"<strong>Type:</strong> {cta_type}")
-            
+
         if product_name:
             lines.append(f"Product: <strong>{product_name}</strong>")
         if browser:
@@ -285,11 +390,37 @@ def link_historical_activities_to_lead(client_id, lead_name):
 
 
 def get_utm_params_from_data(data):
-    """Extract UTM parameters from request data"""
-    return {
-        'utm_source': data.get('utm_source'),
-        'utm_medium': data.get('utm_medium'),
-        'utm_campaign': data.get('utm_campaign'),
-        'utm_term': data.get('utm_term'),
-        'utm_content': data.get('utm_content')
-    }
+    """
+    Extract UTM parameters from request data
+    FIXED: Now checks multiple sources
+    """
+    utm_params = {}
+    
+    # Method 1: Direct from data
+    utm_params['utm_source'] = data.get('utm_source')
+    utm_params['utm_medium'] = data.get('utm_medium')
+    utm_params['utm_campaign'] = data.get('utm_campaign')
+    utm_params['utm_term'] = data.get('utm_term')
+    utm_params['utm_content'] = data.get('utm_content')
+    
+    # Method 2: Parse from page_url if not in data
+    page_url = data.get('page_url') or data.get('page_location') or ''
+    if page_url and '?' in page_url:
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(page_url)
+        query_params = parse_qs(parsed.query)
+        
+        if not utm_params['utm_source'] and 'utm_source' in query_params:
+            utm_params['utm_source'] = query_params['utm_source'][0]
+        if not utm_params['utm_medium'] and 'utm_medium' in query_params:
+            utm_params['utm_medium'] = query_params['utm_medium'][0]
+        if not utm_params['utm_campaign'] and 'utm_campaign' in query_params:
+            utm_params['utm_campaign'] = query_params['utm_campaign'][0]
+        if not utm_params['utm_term'] and 'utm_term' in query_params:
+            utm_params['utm_term'] = query_params['utm_term'][0]
+        if not utm_params['utm_content'] and 'utm_content' in query_params:
+            utm_params['utm_content'] = query_params['utm_content'][0]
+    
+    frappe.logger().info(f"📊 UTM Params extracted: {utm_params}")
+    
+    return utm_params
