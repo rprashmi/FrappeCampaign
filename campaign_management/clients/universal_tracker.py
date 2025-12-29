@@ -418,6 +418,10 @@ def submit_form(**kwargs):
     """
     🎯 UNIVERSAL FORM HANDLER
     COMPLETE FIX: Enhanced UTM parameter capture and source detection
+    
+    Attribution Strategy:
+    - Lead-level UTM: First-touch attribution (original source)
+    - Activity-level UTM: Multi-touch attribution (every visit)
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
@@ -442,7 +446,7 @@ def submit_form(**kwargs):
         frappe.logger().info(f"✅ Organization: {org_name} ({org_type})")
         ensure_organization_exists(org_config)
 
-        # Extract UTM parameters FIRST (before determining source)
+        # ✅ Extract UTM parameters FIRST (before determining source)
         utm_params = get_utm_params_from_data(data)
         frappe.logger().info(f"📊 Extracted UTM Params: {json.dumps(utm_params, indent=2)}")
 
@@ -466,7 +470,7 @@ def submit_form(**kwargs):
         client_id_raw = data.get("ga_client_id") or data.get("client_id")
         client_id = str(client_id_raw) if client_id_raw else None
 
-        frappe.logger().info(f"✅ Extracted: name={full_name}, email={email}, client_id={client_id}")
+        frappe.logger().info(f"✅ Extracted: name={full_name}, email={email}, company={company}, client_id={client_id}")
 
         # E-commerce fields
         cart_items = str(data.get("cart_items") or "")
@@ -542,15 +546,49 @@ def submit_form(**kwargs):
         existing_lead = find_lead_cross_device(email, client_id, org_name)
 
         if existing_lead:
+            # ============================================
             # UPDATE EXISTING LEAD
+            # ============================================
             frappe.logger().info(f"🔄 Updating existing lead: {existing_lead['name']}")
 
             lead = frappe.get_doc("CRM Lead", existing_lead['name'])
 
+            # Update basic info if missing
             if phone and not lead.mobile_no:
                 lead.mobile_no = phone
-            if company and not lead.company_name:
-                lead.company_name = company
+            if company and not lead.get('lead_company'):
+                lead.lead_company = company
+
+            # ✅ FIRST-TOUCH ATTRIBUTION: Save UTM params ONLY if they don't exist
+            # This preserves the ORIGINAL source that brought the lead
+            first_touch_updated = False
+            
+            if utm_params.get('utm_source') and not lead.get('utm_source'):
+                lead.utm_source = utm_params.get('utm_source')
+                frappe.logger().info(f"✅ Set FIRST-TOUCH utm_source: {utm_params.get('utm_source')}")
+                first_touch_updated = True
+            
+            if utm_params.get('utm_medium') and not lead.get('utm_medium'):
+                lead.utm_medium = utm_params.get('utm_medium')
+                frappe.logger().info(f"✅ Set FIRST-TOUCH utm_medium: {utm_params.get('utm_medium')}")
+                first_touch_updated = True
+            
+            if utm_params.get('utm_campaign') and not lead.get('utm_campaign'):
+                lead.utm_campaign = utm_params.get('utm_campaign')
+                frappe.logger().info(f"✅ Set FIRST-TOUCH utm_campaign: {utm_params.get('utm_campaign')}")
+                first_touch_updated = True
+            
+            if utm_params.get('utm_campaign_id') and not lead.get('utm_campaign_id'):
+                lead.utm_campaign_id = utm_params.get('utm_campaign_id')
+                frappe.logger().info(f"✅ Set FIRST-TOUCH utm_campaign_id: {utm_params.get('utm_campaign_id')}")
+                first_touch_updated = True
+
+            if first_touch_updated:
+                frappe.logger().info(f"ℹ️  First-touch attribution set. Current visit UTM will be in activity.")
+            else:
+                frappe.logger().info(f"ℹ️  Lead already has first-touch UTM. Current visit UTM tracked in activity only.")
+                if utm_params.get('utm_source'):
+                    frappe.logger().info(f"   Lead first-touch: {lead.get('utm_source')} | Current visit: {utm_params.get('utm_source')}")
 
             # Build comment
             if org_type == "ecommerce":
@@ -565,6 +603,8 @@ def submit_form(**kwargs):
             lead.add_comment("Info", comment)
             lead.save(ignore_permissions=True)
 
+            # ✅ MULTI-TOUCH ATTRIBUTION: Current visit's UTM params are ALWAYS saved in activity
+            # This captures the CURRENT campaign/source that brought them back
             add_activity_to_lead(lead.name, {
                 "activity_type": activity_type,
                 "page_url": page_url,
@@ -577,7 +617,7 @@ def submit_form(**kwargs):
                 "referrer": referrer,
                 "client_id": client_id,
                 "user_agent": user_agent,
-                **utm_params
+                **utm_params  # ✅ CURRENT visit's UTM params saved here
             })
 
             frappe.db.commit()
@@ -588,11 +628,15 @@ def submit_form(**kwargs):
                 "lead": lead.name,
                 "organization": org_name,
                 "source_detected": source,
-                "utm_captured": {k: v for k, v in utm_params.items() if v}
+                "utm_captured": {k: v for k, v in utm_params.items() if v},
+                "first_touch_updated": first_touch_updated,
+                "attribution_note": "Lead-level shows first touch, activity shows current visit"
             }
 
         else:
+            # ============================================
             # CREATE NEW LEAD
+            # ============================================
             frappe.logger().info(f"➕ Creating new lead: {full_name or (first_name + ' ' + last_name)}")
 
             if not first_name and full_name:
@@ -600,33 +644,70 @@ def submit_form(**kwargs):
                 first_name = name_parts[0] if name_parts else full_name
                 last_name = name_parts[1] if len(name_parts) > 1 else ""
 
+            # Determine source_type based on how lead was created
+            source_type = "Form" if (email or phone) else "Landing Page"
+            
+            # ✅ Build lead document with ALL fields including UTM
             lead = frappe.get_doc({
                 "doctype": "CRM Lead",
                 "first_name": first_name,
                 "last_name": last_name,
                 "email": email if email else None,
                 "mobile_no": phone if phone else None,
-                "company_name": company if company else None,
+                "lead_company": company if company else None,  # ✅ NEW FIELD
                 "status": "New",
                 "source": source,
+                "source_type": source_type,  # ✅ Form or Landing Page
+                "source_name": f"{form_name}" if form_name else cta_source,
                 "website": page_url,
                 "organization": org_name,
                 "ga_client_id": client_id,
+                "page_url": page_url,
+                "referrer": referrer,
+                # ✅ CRITICAL: Save UTM parameters in individual fields (FIRST-TOUCH)
                 "utm_source": utm_params.get('utm_source'),
                 "utm_medium": utm_params.get('utm_medium'),
                 "utm_campaign": utm_params.get('utm_campaign'),
+                "utm_campaign_id": utm_params.get('utm_campaign_id'),  # ✅ NEW FIELD
+                # Save complete tracking details as JSON
                 "full_tracking_details": json.dumps(complete_tracking_data, indent=2)
             })
 
             lead.insert(ignore_permissions=True)
             frappe.db.commit()
 
-            frappe.logger().info(f"✅ Lead created: {lead.name} with Source: {source}, UTM: {utm_params}")
+            # Log what was saved
+            frappe.logger().info(f"✅ Lead created: {lead.name}")
+            frappe.logger().info(f"   Source: {source}")
+            frappe.logger().info(f"   Source Type: {source_type}")
+            frappe.logger().info(f"   Source Name: {form_name or cta_source}")
+            if company:
+                frappe.logger().info(f"   Company: {company}")
+            
+            # Log UTM parameters if they exist
+            utm_logged = False
+            if utm_params.get('utm_source'):
+                frappe.logger().info(f"   UTM Source: {utm_params.get('utm_source')}")
+                utm_logged = True
+            if utm_params.get('utm_medium'):
+                frappe.logger().info(f"   UTM Medium: {utm_params.get('utm_medium')}")
+                utm_logged = True
+            if utm_params.get('utm_campaign'):
+                frappe.logger().info(f"   UTM Campaign: {utm_params.get('utm_campaign')}")
+                utm_logged = True
+            if utm_params.get('utm_campaign_id'):
+                frappe.logger().info(f"   UTM Campaign ID: {utm_params.get('utm_campaign_id')}")
+                utm_logged = True
+            
+            if not utm_logged:
+                frappe.logger().info(f"   UTM Parameters: None (direct traffic or no UTM in URL)")
 
+            # Link web visitor
             if client_id:
                 link_web_visitor_to_lead(client_id, lead.name)
                 link_historical_activities_to_lead(client_id, lead.name)
 
+            # Create first activity
             if org_type == "ecommerce":
                 activity_type = f"🛒 First Order - ₹{cart_total}"
                 product_info = cart_items
@@ -634,6 +715,7 @@ def submit_form(**kwargs):
                 activity_type = f"📝 First {request_type} ({form_name})"
                 product_info = interested_features
 
+            # ✅ First activity also gets UTM params (same as lead-level for new leads)
             add_activity_to_lead(lead.name, {
                 "activity_type": activity_type,
                 "page_url": page_url,
@@ -646,7 +728,7 @@ def submit_form(**kwargs):
                 "referrer": referrer,
                 "client_id": client_id,
                 "user_agent": user_agent,
-                **utm_params
+                **utm_params  # ✅ UTM params in activity
             })
 
             frappe.db.commit()
@@ -657,7 +739,9 @@ def submit_form(**kwargs):
                 "lead": lead.name,
                 "organization": org_name,
                 "source_detected": source,
-                "utm_captured": {k: v for k, v in utm_params.items() if v}
+                "utm_captured": {k: v for k, v in utm_params.items() if v},
+                "is_new_lead": True,
+                "attribution_note": "First-touch attribution recorded"
             }
 
     except Exception as e:

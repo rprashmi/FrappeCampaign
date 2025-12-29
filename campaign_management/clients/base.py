@@ -451,13 +451,18 @@ def get_utm_params_from_data(data):
         'utm_medium': None,
         'utm_campaign': None,
         'utm_term': None,
-        'utm_content': None
+        'utm_content': None,
+        'utm_campaign_id': None  # ✅ ADDED
     }
 
     # Method 1: Direct from data (highest priority)
     for utm_key in utm_params.keys():
         if data.get(utm_key):
             utm_params[utm_key] = str(data.get(utm_key)).strip()
+    
+    # Also check for 'utm_id' as campaign_id alias
+    if not utm_params['utm_campaign_id'] and data.get('utm_id'):
+        utm_params['utm_campaign_id'] = str(data.get('utm_id')).strip()
 
     # Method 2: Parse from page_url if not in data
     page_url = data.get('page_url') or data.get('page_location') or ''
@@ -470,6 +475,12 @@ def get_utm_params_from_data(data):
                 if not utm_params[utm_key] and utm_key in query_params:
                     utm_params[utm_key] = query_params[utm_key][0].strip()
                     frappe.logger().info(f"✅ Extracted {utm_key} from page_url: {utm_params[utm_key]}")
+            
+            # Also check for utm_id in URL
+            if not utm_params['utm_campaign_id'] and 'utm_id' in query_params:
+                utm_params['utm_campaign_id'] = query_params['utm_id'][0].strip()
+                frappe.logger().info(f"✅ Extracted utm_campaign_id from page_url utm_id: {utm_params['utm_campaign_id']}")
+                
         except Exception as e:
             frappe.logger().error(f"Error parsing page_url for UTM: {str(e)}")
 
@@ -484,6 +495,12 @@ def get_utm_params_from_data(data):
                 if not utm_params[utm_key] and utm_key in query_params:
                     utm_params[utm_key] = query_params[utm_key][0].strip()
                     frappe.logger().info(f"✅ Extracted {utm_key} from referrer: {utm_params[utm_key]}")
+            
+            # Also check for utm_id in referrer
+            if not utm_params['utm_campaign_id'] and 'utm_id' in query_params:
+                utm_params['utm_campaign_id'] = query_params['utm_id'][0].strip()
+                frappe.logger().info(f"✅ Extracted utm_campaign_id from referrer utm_id: {utm_params['utm_campaign_id']}")
+                
         except Exception as e:
             frappe.logger().error(f"Error parsing referrer for UTM: {str(e)}")
 
