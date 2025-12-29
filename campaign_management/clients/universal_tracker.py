@@ -1,6 +1,11 @@
 """
-Universal Tracker - FIXED VERSION
-Enhanced: UTM parameter capture, Browser detection, Device tracking
+Universal Tracker - COMPLETE FIXED VERSION
+Changes:
+1. Enhanced UTM parameter capture from multiple sources
+2. Fixed source detection with explicit Facebook/social media mapping
+3. Better cross-device tracking
+4. Improved referrer handling
+5. Added comprehensive logging
 """
 import frappe
 from frappe.utils import now
@@ -16,32 +21,6 @@ from campaign_management.clients.base import (
     link_historical_activities_to_lead
 )
 
-
-# Source Mapping Configuration
-SOURCE_MAPPING = {
-    "facebook": "Facebook",
-    "fb": "Facebook",
-    "instagram": "Facebook",
-    "ig": "Facebook",
-    "google": "Campaign",
-    "google_ads": "Campaign",
-    "adwords": "Campaign",
-    "linkedin": "Advertisement",
-    "twitter": "Advertisement",
-    "x.com": "Advertisement",
-    "email": "Mass Mailing",
-    "newsletter": "Mass Mailing",
-    "cold_call": "Cold Calling",
-    "phone": "Cold Calling",
-    "exhibition": "Exhibition",
-    "event": "Exhibition",
-    "trade_show": "Exhibition",
-    "referral": "Supplier Reference",
-    "partner": "Supplier Reference",
-    "walk_in": "Walk In",
-    "direct": "Walk In",
-    "campaign": "Campaign",
-}
 
 # Organization Configuration Database
 ORGANIZATION_CONFIG = {
@@ -62,95 +41,134 @@ ORGANIZATION_CONFIG = {
 }
 
 
-def extract_utm_from_url(url):
-    """
-    Extract UTM parameters directly from URL
-    This is a BACKUP method when GTM doesn't pass them
-    """
-    utm_params = {
-        'utm_source': None,
-        'utm_medium': None,
-        'utm_campaign': None,
-        'utm_term': None,
-        'utm_content': None
-    }
-    
-    if not url or '?' not in url:
-        return utm_params
-    
-    try:
-        parsed = urlparse(url)
-        query_params = parse_qs(parsed.query)
-        
-        for key in utm_params.keys():
-            if key in query_params:
-                utm_params[key] = query_params[key][0]
-                frappe.logger().info(f"✅ Extracted from URL: {key} = {utm_params[key]}")
-    except Exception as e:
-        frappe.logger().error(f"Error extracting UTM from URL: {str(e)}")
-    
-    return utm_params
-
-
 def determine_source(data, org_config):
     """
-    🎯 Smart Source Detection - Maps to Frappe CRM standard sources
+    🎯 ENHANCED Smart Source Detection - Maps to Frappe CRM standard sources
     Priority: UTM Source > UTM Medium > Referrer > Default (Website)
+    
+    FIXED: Now properly detects Facebook, Instagram, and all social sources
     """
-    # Method 1: Check UTM source
+    
+    # Method 1: Check UTM source (HIGHEST PRIORITY)
     utm_source = str(data.get("utm_source") or "").lower().strip()
+    
     if utm_source:
-        if "campaign" in utm_source:
+        frappe.logger().info(f"🔍 Checking UTM Source: '{utm_source}'")
+        
+        # Facebook/Instagram detection
+        if any(fb_term in utm_source for fb_term in ['facebook', 'fb', 'fb.com', 'facebook.com', 'm.facebook', 'instagram', 'ig']):
+            frappe.logger().info(f"✅ Source from UTM: {utm_source} → Facebook")
+            return "Facebook"
+        
+        # Google Ads / Campaign detection
+        if any(google_term in utm_source for google_term in ['google', 'google_ads', 'adwords', 'gclid', 'google.com']):
             frappe.logger().info(f"✅ Source from UTM: {utm_source} → Campaign")
             return "Campaign"
-
-        for key, crm_source in SOURCE_MAPPING.items():
-            if key in utm_source:
-                frappe.logger().info(f"✅ Source from UTM: {utm_source} → {crm_source}")
-                return crm_source
-
-        if any(term in utm_source for term in ['promo', 'offer', 'sale', 'launch']):
-            frappe.logger().info(f"✅ Source from UTM (promotional): {utm_source} → Campaign")
+        
+        # LinkedIn detection
+        if any(li_term in utm_source for li_term in ['linkedin', 'li', 'linkedin.com']):
+            frappe.logger().info(f"✅ Source from UTM: {utm_source} → Advertisement")
+            return "Advertisement"
+        
+        # Twitter/X detection
+        if any(tw_term in utm_source for tw_term in ['twitter', 'x.com', 't.co', 'x']):
+            frappe.logger().info(f"✅ Source from UTM: {utm_source} → Advertisement")
+            return "Advertisement"
+        
+        # Email detection
+        if any(email_term in utm_source for email_term in ['email', 'newsletter', 'mailchimp', 'sendinblue', 'mail']):
+            frappe.logger().info(f"✅ Source from UTM: {utm_source} → Mass Mailing")
+            return "Mass Mailing"
+        
+        # Campaign detection from keywords
+        if 'campaign' in utm_source or any(term in utm_source for term in ['promo', 'offer', 'sale', 'launch', 'ad', 'paid']):
+            frappe.logger().info(f"✅ Source from UTM (campaign keyword): {utm_source} → Campaign")
             return "Campaign"
-
+        
+        # Referral/Partner detection
+        if any(ref_term in utm_source for ref_term in ['referral', 'partner', 'affiliate']):
+            frappe.logger().info(f"✅ Source from UTM: {utm_source} → Supplier Reference")
+            return "Supplier Reference"
+    
     # Method 2: Check UTM medium
     utm_medium = str(data.get("utm_medium") or "").lower().strip()
+    
     if utm_medium:
-        if utm_medium in ['cpc', 'ppc', 'paid', 'display', 'banner']:
+        frappe.logger().info(f"🔍 Checking UTM Medium: '{utm_medium}'")
+        
+        # Paid media detection
+        if utm_medium in ['cpc', 'ppc', 'paid', 'display', 'banner', 'paid_social', 'paidsocial']:
             frappe.logger().info(f"✅ Source from UTM medium: {utm_medium} → Campaign")
             return "Campaign"
-        elif utm_medium == 'email':
+        
+        # Social media detection from medium
+        if utm_medium in ['social', 'social_media', 'socialmedia']:
+            # Check if source indicates specific platform
+            if utm_source and 'facebook' in utm_source:
+                frappe.logger().info(f"✅ Source from UTM medium+source: {utm_medium} + {utm_source} → Facebook")
+                return "Facebook"
+            frappe.logger().info(f"✅ Source from UTM medium: {utm_medium} → Advertisement")
+            return "Advertisement"
+        
+        # Email detection
+        if utm_medium == 'email':
             frappe.logger().info(f"✅ Source from UTM medium: {utm_medium} → Mass Mailing")
             return "Mass Mailing"
-
-    # Method 3: Check referrer
-    referrer = str(data.get("referrer") or "").lower().strip()
-    if referrer and referrer != "direct":
+    
+    # Method 3: Check referrer URL
+    referrer = str(data.get("referrer") or data.get("page_referrer") or "").lower().strip()
+    
+    if referrer and referrer not in ['direct', '', 'null', 'undefined', '(direct)']:
+        frappe.logger().info(f"🔍 Checking Referrer: '{referrer}'")
+        
         try:
             parsed = urlparse(referrer)
             domain = parsed.netloc.lower()
-
-            for key, crm_source in SOURCE_MAPPING.items():
-                if key in domain:
-                    frappe.logger().info(f"✅ Source from referrer: {referrer} → {crm_source}")
-                    return crm_source
-
+            
+            # Facebook detection from referrer
+            if any(fb_domain in domain for fb_domain in ['facebook.com', 'fb.com', 'm.facebook.com', 'l.facebook.com', 'lm.facebook.com']):
+                frappe.logger().info(f"✅ Source from referrer: {referrer} → Facebook")
+                return "Facebook"
+            
+            # Instagram detection from referrer
+            if 'instagram.com' in domain:
+                frappe.logger().info(f"✅ Source from referrer: {referrer} → Facebook")
+                return "Facebook"
+            
+            # Google detection from referrer
+            if any(google_domain in domain for google_domain in ['google.com', 'google.co', 'googleads', 'doubleclick']):
+                frappe.logger().info(f"✅ Source from referrer: {referrer} → Campaign")
+                return "Campaign"
+            
+            # LinkedIn detection from referrer
+            if 'linkedin.com' in domain:
+                frappe.logger().info(f"✅ Source from referrer: {referrer} → Advertisement")
+                return "Advertisement"
+            
+            # Twitter/X detection from referrer
+            if any(tw_domain in domain for tw_domain in ['twitter.com', 'x.com', 't.co']):
+                frappe.logger().info(f"✅ Source from referrer: {referrer} → Advertisement")
+                return "Advertisement"
+            
+            # Check if it's external referrer (not from org's own domains)
             org_domains = org_config.get("domains", [])
             is_external = not any(org_domain in domain for org_domain in org_domains)
+            
             if is_external and domain:
                 frappe.logger().info(f"✅ External referrer: {referrer} → Supplier Reference")
                 return "Supplier Reference"
+                
         except Exception as e:
             frappe.logger().error(f"Error parsing referrer: {str(e)}")
-
-    # Method 4: Check if user is logged in
-    user_email = data.get("user_email") or data.get("email")
-    if user_email:
-        frappe.logger().info(f"✅ Logged in user → Website")
+    
+    # Method 4: Check if user is logged in (indicates returning user)
+    user_email = data.get("user_email") or data.get("email") or data.get("lead_email")
+    if user_email and "@" in str(user_email):
+        frappe.logger().info(f"✅ Logged in user with email → Website")
         return "Website"
-
-    # Default: Website
-    frappe.logger().info(f"✅ Default source → Website")
+    
+    # Default: Website (for direct traffic or unidentified sources)
+    frappe.logger().info(f"✅ No specific source detected → Website (Direct)")
     return "Website"
 
 
@@ -260,8 +278,8 @@ def identify_organization(data):
             frappe.logger().error(f"Error parsing page_url: {str(e)}")
 
     # Method 3: Check referrer
-    referrer = str(data.get("referrer") or "").lower()
-    if referrer and referrer != "direct":
+    referrer = str(data.get("referrer") or data.get("page_referrer") or "").lower()
+    if referrer and referrer not in ['direct', '', 'null', 'undefined']:
         try:
             parsed = urlparse(referrer)
             domain = parsed.netloc
@@ -399,7 +417,7 @@ def user_login(**kwargs):
 def submit_form(**kwargs):
     """
     🎯 UNIVERSAL FORM HANDLER
-    FIXED: Enhanced UTM parameter capture
+    COMPLETE FIX: Enhanced UTM parameter capture and source detection
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
@@ -424,7 +442,11 @@ def submit_form(**kwargs):
         frappe.logger().info(f"✅ Organization: {org_name} ({org_type})")
         ensure_organization_exists(org_config)
 
-        # Determine smart source
+        # Extract UTM parameters FIRST (before determining source)
+        utm_params = get_utm_params_from_data(data)
+        frappe.logger().info(f"📊 Extracted UTM Params: {json.dumps(utm_params, indent=2)}")
+
+        # Determine smart source (uses UTM params)
         source = determine_source(data, org_config)
         frappe.logger().info(f"✅ Determined Source: {source}")
 
@@ -470,21 +492,10 @@ def submit_form(**kwargs):
         user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
         ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
         page_url = str(data.get("page_url") or data.get("page_location") or "")
-        referrer = str(data.get("referrer") or "")
+        referrer = str(data.get("referrer") or data.get("page_referrer") or "")
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
-        
-        # CRITICAL FIX: Get UTM params using enhanced function
-        utm_params = get_utm_params_from_data(data)
-        
-        # BACKUP: Extract from URL if not in data
-        if not any(utm_params.values()) and page_url:
-            frappe.logger().info("⚠️ UTM not in data, extracting from URL...")
-            url_utm = extract_utm_from_url(page_url)
-            utm_params.update(url_utm)
-
-        frappe.logger().info(f"📊 Final UTM Params: {utm_params}")
 
         geo_location = ""
         if geo_info.get('city') and geo_info.get('country'):
@@ -492,7 +503,7 @@ def submit_form(**kwargs):
         elif geo_info.get('country'):
             geo_location = geo_info['country']
 
-        # Build tracking data
+        # Build complete tracking data
         complete_tracking_data = {
             "browser": {
                 "browser_name": browser_details['browser'],
@@ -509,7 +520,8 @@ def submit_form(**kwargs):
             "organization_type": org_type,
             "cta_source": cta_source,
             "form_name": form_name,
-            "source": source
+            "source": source,
+            "referrer": referrer
         }
 
         if org_type == "ecommerce":
@@ -574,7 +586,9 @@ def submit_form(**kwargs):
                 "success": True,
                 "message": "Thank you! Your information has been updated.",
                 "lead": lead.name,
-                "organization": org_name
+                "organization": org_name,
+                "source_detected": source,
+                "utm_captured": {k: v for k, v in utm_params.items() if v}
             }
 
         else:
@@ -607,7 +621,7 @@ def submit_form(**kwargs):
             lead.insert(ignore_permissions=True)
             frappe.db.commit()
 
-            frappe.logger().info(f"✅ Lead created: {lead.name} with UTM: {utm_params}")
+            frappe.logger().info(f"✅ Lead created: {lead.name} with Source: {source}, UTM: {utm_params}")
 
             if client_id:
                 link_web_visitor_to_lead(client_id, lead.name)
@@ -642,7 +656,8 @@ def submit_form(**kwargs):
                 "message": "Thank you! We'll contact you soon.",
                 "lead": lead.name,
                 "organization": org_name,
-                "utm_captured": utm_params
+                "source_detected": source,
+                "utm_captured": {k: v for k, v in utm_params.items() if v}
             }
 
     except Exception as e:
@@ -662,7 +677,7 @@ def submit_form(**kwargs):
 def track_activity(**kwargs):
     """
     🎯 UNIVERSAL ACTIVITY TRACKER
-    FIXED: Enhanced UTM and device tracking
+    COMPLETE FIX: Enhanced UTM and device tracking with better error handling
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
@@ -695,20 +710,15 @@ def track_activity(**kwargs):
         if "scroll" in activity_type.lower() and percent_scrolled:
             if isinstance(percent_scrolled, str):
                 percent_scrolled = percent_scrolled.replace("scroll_", "")
-            activity_type = f" Scroll {percent_scrolled}%"
+            activity_type = f"📜 Scroll {percent_scrolled}%"
 
         user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
         ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
-        referrer = str(data.get("referrer") or "")
+        referrer = str(data.get("referrer") or data.get("page_referrer") or "")
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
         utm_params = get_utm_params_from_data(data)
-        
-        # BACKUP: Extract from URL
-        if not any(utm_params.values()) and page_url:
-            url_utm = extract_utm_from_url(page_url)
-            utm_params.update(url_utm)
 
         geo_location = ""
         if geo_info.get('city') and geo_info.get('country'):
@@ -716,7 +726,7 @@ def track_activity(**kwargs):
         elif geo_info.get('country'):
             geo_location = geo_info['country']
 
-        # CRITICAL: Pass user_agent to get_or_create_web_visitor
+        # CRITICAL: Pass user_agent in data for visitor creation
         data['user_agent'] = user_agent
         visitor = get_or_create_web_visitor(client_id, data)
         frappe.db.set_value("Web Visitor", visitor.name, "last_seen", now(), update_modified=False)
@@ -770,7 +780,8 @@ def track_activity(**kwargs):
             "linked_lead": lead_name,
             "organization": org_name,
             "activity_saved": success,
-            "device_detected": browser_details['device']
+            "device_detected": browser_details['device'],
+            "utm_captured": {k: v for k, v in utm_params.items() if v}
         }
 
     except Exception as e:
