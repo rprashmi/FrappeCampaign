@@ -1,10 +1,9 @@
 """
-Shared utilities for all client APIs - COMPLETE FIXED VERSION
+Shared utilities for all client APIs - UPDATED VERSION
 Changes:
-1. Added device field management (stored in custom field or in tracking JSON)
-2. Enhanced UTM parameter extraction with multiple fallback methods
-3. Improved browser/device detection
-4. Better error handling for missing fields
+1. Removed emojis from activity tracking
+2. Added collapsible URLs for better UI
+3. Cleaner, more professional activity display
 """
 import frappe
 from frappe.utils import now, format_datetime
@@ -14,34 +13,22 @@ from urllib.parse import urlparse, parse_qs
 
 
 def extract_browser_details(user_agent):
-    """
-    Enhanced browser, OS, device detection with better accuracy
-    """
+    """Enhanced browser, OS, device detection with better accuracy"""
     if not user_agent:
-        return {
-            "browser": "Unknown",
-            "os": "Unknown",
-            "device": "Desktop",
-            "user_agent": ""
-        }
+        return {"browser": "Unknown", "os": "Unknown", "device": "Desktop", "user_agent": ""}
 
     user_agent = str(user_agent)
     browser = "Unknown"
     os = "Unknown"
     device = "Desktop"
 
-    # ============================================
-    # BROWSER DETECTION (Order matters!)
-    # ============================================
+    # BROWSER DETECTION
     if "Edg/" in user_agent or "Edge/" in user_agent:
         browser = "Edge"
     elif "OPR/" in user_agent or "Opera" in user_agent:
         browser = "Opera"
     elif "Chrome/" in user_agent and "Safari/" in user_agent:
-        if "Brave" in user_agent:
-            browser = "Brave"
-        else:
-            browser = "Chrome"
+        browser = "Brave" if "Brave" in user_agent else "Chrome"
     elif "Safari/" in user_agent and "Chrome" not in user_agent:
         browser = "Safari"
     elif "Firefox/" in user_agent:
@@ -49,9 +36,7 @@ def extract_browser_details(user_agent):
     elif "MSIE" in user_agent or "Trident/" in user_agent:
         browser = "Internet Explorer"
 
-    # ============================================
     # OPERATING SYSTEM DETECTION
-    # ============================================
     if "Windows NT 10" in user_agent:
         os = "Windows 10"
     elif "Windows NT 6.3" in user_agent:
@@ -91,13 +76,8 @@ def extract_browser_details(user_agent):
     elif "CrOS" in user_agent:
         os = "Chrome OS"
 
-    # ============================================
     # DEVICE TYPE DETECTION
-    # ============================================
-    mobile_indicators = [
-        "Mobile", "Android", "iPhone", "iPod", "BlackBerry",
-        "Windows Phone", "Opera Mini", "IEMobile"
-    ]
+    mobile_indicators = ["Mobile", "Android", "iPhone", "iPod", "BlackBerry", "Windows Phone", "Opera Mini", "IEMobile"]
     tablet_indicators = ["iPad", "Tablet", "PlayBook", "Kindle"]
 
     if any(indicator in user_agent for indicator in tablet_indicators):
@@ -110,25 +90,16 @@ def extract_browser_details(user_agent):
     if "Android" in user_agent and "Mobile" not in user_agent:
         device = "Tablet"
 
-    return {
-        "browser": browser,
-        "os": os,
-        "device": device,
-        "user_agent": user_agent
-    }
+    return {"browser": browser, "os": os, "device": device, "user_agent": user_agent}
 
 
 def get_geo_info_from_ip(ip_address):
     """Get geographic info from IP"""
-    geo_info = {
-        'country': None, 'country_code': None, 'region': None,
-        'city': None, 'latitude': None, 'longitude': None
-    }
+    geo_info = {'country': None, 'country_code': None, 'region': None, 'city': None, 'latitude': None, 'longitude': None}
 
     try:
         if ip_address in ['127.0.0.1', 'localhost', '::1', None, '']:
             return geo_info
-
         if ip_address.startswith(('10.', '172.', '192.168.')):
             return geo_info
 
@@ -157,16 +128,11 @@ def get_geo_info_from_ip(ip_address):
 
 
 def ensure_web_visitor_has_device_field():
-    """
-    Ensure Web Visitor doctype has device field
-    This runs once and creates the field if it doesn't exist
-    """
+    """Ensure Web Visitor doctype has device field"""
     try:
-        # Check if field already exists
         if frappe.db.exists("Custom Field", {"dt": "Web Visitor", "fieldname": "device"}):
             return True
-        
-        # Create custom field
+
         custom_field = frappe.get_doc({
             "doctype": "Custom Field",
             "dt": "Web Visitor",
@@ -181,55 +147,34 @@ def ensure_web_visitor_has_device_field():
         })
         custom_field.insert(ignore_permissions=True)
         frappe.db.commit()
-        
-        frappe.logger().info("✅ Created device field in Web Visitor")
+        frappe.logger().info("Created device field in Web Visitor")
         return True
-        
     except Exception as e:
-        frappe.logger().error(f"❌ Could not create device field: {str(e)}")
+        frappe.logger().error(f"Could not create device field: {str(e)}")
         return False
 
 
 def get_or_create_web_visitor(client_id, data):
-    """
-    Get existing or create new Web Visitor
-    FIXED: Safe device field handling - uses custom field if available, otherwise stores in JSON
-    """
-    # Ensure device field exists (only runs once)
+    """Get existing or create new Web Visitor"""
     ensure_web_visitor_has_device_field()
-    
     visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
 
     if visitor_name:
         visitor = frappe.get_doc("Web Visitor", visitor_name)
-
-        # UPDATE DEVICE TYPE on each visit
         user_agent = data.get("user_agent") or ""
         if user_agent:
             browser_details = extract_browser_details(user_agent)
             current_device = browser_details['device']
-
-            # Try to update device field safely
             try:
-                # Check if visitor object has device attribute
                 existing_device = getattr(visitor, 'device', None)
-                
-                # Update if changed
                 if existing_device != current_device:
-                    frappe.logger().info(f"🔄 Device update: {existing_device} → {current_device}")
+                    frappe.logger().info(f"Device update: {existing_device} to {current_device}")
                     frappe.db.set_value("Web Visitor", visitor_name, "device", current_device, update_modified=False)
-                    
             except Exception as e:
-                # If device field doesn't exist as attribute, store in a custom way
-                frappe.logger().warning(f"⚠️ Device field not accessible, skipping update: {str(e)}")
-                # You can optionally store device info in a JSON field or comment instead
-
+                frappe.logger().warning(f"Device field not accessible: {str(e)}")
     else:
-        # Extract browser details for new visitor
         user_agent = data.get("user_agent") or ""
         browser_details = extract_browser_details(user_agent)
-
-        # Base visitor data
         visitor_data = {
             "doctype": "Web Visitor",
             "client_id": client_id,
@@ -237,39 +182,47 @@ def get_or_create_web_visitor(client_id, data):
             "first_seen": now(),
             "last_seen": now()
         }
-        
-        # Try to add device field
         try:
             visitor_data["device"] = browser_details['device']
         except Exception:
-            # Device field might not exist yet, that's okay
-            frappe.logger().info(f"ℹ️ Device field not available, will be added later")
-        
+            frappe.logger().info("Device field not available")
+
         visitor = frappe.get_doc(visitor_data)
         visitor.insert(ignore_permissions=True)
         frappe.db.commit()
-        
-        frappe.logger().info(f"✅ Created Web Visitor: {visitor.name} (Device: {browser_details.get('device', 'Unknown')})")
+        frappe.logger().info(f"Created Web Visitor: {visitor.name}")
 
     return visitor
 
 
 def link_web_visitor_to_lead(client_id, lead_name):
-    """Link Web Visitor → Lead"""
+    """Link Web Visitor to Lead"""
     try:
         visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
         if visitor_name:
             frappe.db.set_value("Web Visitor", visitor_name, "converted_lead", lead_name, update_modified=False)
             frappe.db.commit()
-            frappe.logger().info(f"✅ Linked Web Visitor {visitor_name} → Lead {lead_name}")
+            frappe.logger().info(f"Linked Web Visitor {visitor_name} to Lead {lead_name}")
     except Exception as e:
         frappe.logger().error(f"Failed to link visitor {client_id}: {str(e)}")
+
+
+def truncate_url(url, max_length=50):
+    """
+    Truncate long URLs for display
+    Returns: tuple (display_text, full_url)
+    """
+    if not url or len(url) <= max_length:
+        return url, url
+    
+    # Show first 40 chars + ... + last 10 chars
+    return f"{url[:40]}...{url[-10:]}", url
 
 
 def add_activity_to_lead(lead_name, activity_data):
     """
     Add timeline activity to lead using Communication
-    Enhanced with CTA tracking details
+    ✅ UPDATED: Removed emojis, cleaner display, collapsible URLs
     """
     try:
         # Check if lead exists
@@ -281,15 +234,13 @@ def add_activity_to_lead(lead_name, activity_data):
             # Lead doesn't exist yet - link to Web Visitor instead
             client_id = activity_data.get('client_id')
             if not client_id:
-                frappe.logger().error(f"❌ No lead and no client_id provided")
+                frappe.logger().error("No lead and no client_id provided")
                 return False
 
             visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
             if not visitor_name:
-                # Create visitor if doesn't exist
                 user_agent = activity_data.get('user_agent', '')
                 browser_details = extract_browser_details(user_agent)
-
                 visitor = frappe.get_doc({
                     "doctype": "Web Visitor",
                     "client_id": client_id,
@@ -297,32 +248,30 @@ def add_activity_to_lead(lead_name, activity_data):
                     "first_seen": now(),
                     "last_seen": now()
                 })
-                
-                # Try to add device
                 try:
                     visitor.device = browser_details['device']
                 except:
                     pass
-                    
                 visitor.insert(ignore_permissions=True)
                 frappe.db.commit()
                 visitor_name = visitor.name
-                frappe.logger().info(f"✅ Created Web Visitor: {visitor_name}")
+                frappe.logger().info(f"Created Web Visitor: {visitor_name}")
 
             reference_doctype = "Web Visitor"
             reference_name = visitor_name
             lead_email = ""
-            frappe.logger().info(f"📝 Storing activity for future lead (visitor: {visitor_name})")
+            frappe.logger().info(f"Storing activity for future lead (visitor: {visitor_name})")
 
+        # ✅ CLEANED: Extract data WITHOUT emojis
         activity_type = activity_data.get('activity_type', 'Web Activity')
+        # Remove emojis from activity type
+        activity_type = re.sub(r'[^\w\s\-\(\)%]', '', activity_type).strip()
+        
         page_url = activity_data.get('page_url', '')
         product_name = activity_data.get('product_name', '').strip()
-
-        # Enhanced CTA tracking
         cta_name = activity_data.get('cta_name', '')
         cta_location = activity_data.get('cta_location', '')
         cta_type = activity_data.get('cta_type', '')
-
         browser = activity_data.get('browser', '')
         device = activity_data.get('device', '')
         geo_location = activity_data.get('geo_location', '')
@@ -331,11 +280,12 @@ def add_activity_to_lead(lead_name, activity_data):
         utm_medium = activity_data.get('utm_medium')
         utm_campaign = activity_data.get('utm_campaign')
 
-        # Build clean, readable content
+        # ✅ IMPROVED: Build clean, professional content with collapsible URLs
         lines = [f"<strong>{activity_type}</strong>"]
 
         if page_url:
-            lines.append(f"Page: <a href='{page_url}' target='_blank'>{page_url}</a>")
+            display_url, full_url = truncate_url(page_url, 60)
+            lines.append(f"<strong>Page:</strong> <a href='{full_url}' target='_blank' title='{full_url}'>{display_url}</a>")
 
         if cta_name:
             lines.append(f"<strong>CTA:</strong> {cta_name}")
@@ -343,24 +293,35 @@ def add_activity_to_lead(lead_name, activity_data):
             lines.append(f"<strong>Location:</strong> {cta_location}")
         if cta_type:
             lines.append(f"<strong>Type:</strong> {cta_type}")
-
         if product_name:
-            lines.append(f"Product: <strong>{product_name}</strong>")
+            lines.append(f"<strong>Product:</strong> {product_name}")
+        
+        # Device & Browser info
+        device_info = []
         if browser:
-            lines.append(f"Browser: {browser}")
+            device_info.append(f"Browser: {browser}")
         if device:
-            lines.append(f"Device: {device}")
+            device_info.append(f"Device: {device}")
         if geo_location:
-            lines.append(f"Location: {geo_location}")
-        if referrer and referrer != "direct":
-            lines.append(f"Referrer: {referrer}")
+            device_info.append(f"Location: {geo_location}")
+        if device_info:
+            lines.append(" | ".join(device_info))
 
+        # Referrer with truncation
+        if referrer and referrer != "direct":
+            display_ref, full_ref = truncate_url(referrer, 60)
+            lines.append(f"<strong>Referrer:</strong> <a href='{full_ref}' target='_blank' title='{full_ref}'>{display_ref}</a>")
+
+        # UTM parameters
         utm = []
-        if utm_source: utm.append(f"Source: {utm_source}")
-        if utm_medium: utm.append(f"Medium: {utm_medium}")
-        if utm_campaign: utm.append(f"Campaign: {utm_campaign}")
+        if utm_source:
+            utm.append(f"Source: {utm_source}")
+        if utm_medium:
+            utm.append(f"Medium: {utm_medium}")
+        if utm_campaign:
+            utm.append(f"Campaign: {utm_campaign}")
         if utm:
-            lines.append("UTM: " + " | ".join(utm))
+            lines.append("<strong>UTM:</strong> " + " | ".join(utm))
 
         content = "<br>".join(lines)
 
@@ -380,33 +341,26 @@ def add_activity_to_lead(lead_name, activity_data):
         comm.insert(ignore_permissions=True)
         frappe.db.commit()
 
-        frappe.logger().info(f"✅ Activity saved: {comm.name} for {reference_doctype} {reference_name}")
+        frappe.logger().info(f"Activity saved: {comm.name} for {reference_doctype} {reference_name}")
         return True
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Add Activity Failed")
-        frappe.logger().error(f"❌ Failed to add activity: {str(e)}")
+        frappe.logger().error(f"Failed to add activity: {str(e)}")
         return False
 
 
 def link_historical_activities_to_lead(client_id, lead_name):
-    """
-    When a lead is created, find all Web Visitor activities
-    and link them to this lead retroactively
-    """
+    """When a lead is created, link all Web Visitor activities to this lead"""
     try:
         visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
-
         if not visitor_name:
             frappe.logger().info(f"No Web Visitor found for client_id: {client_id}")
             return
 
         communications = frappe.get_all(
             "Communication",
-            filters={
-                "reference_doctype": "Web Visitor",
-                "reference_name": visitor_name
-            },
+            filters={"reference_doctype": "Web Visitor", "reference_name": visitor_name},
             fields=["name", "subject", "content", "creation"]
         )
 
@@ -421,94 +375,78 @@ def link_historical_activities_to_lead(client_id, lead_name):
                 comm_doc = frappe.get_doc("Communication", comm.name)
                 comm_doc.reference_doctype = "CRM Lead"
                 comm_doc.reference_name = lead_name
-
                 lead_email = frappe.db.get_value("CRM Lead", lead_name, "email") or ""
                 if lead_email:
                     comm_doc.recipients = lead_email
-
                 comm_doc.save(ignore_permissions=True)
-                frappe.logger().info(f"✅ Linked activity {comm.name} to lead {lead_name}")
+                frappe.logger().info(f"Linked activity {comm.name} to lead {lead_name}")
             except Exception as e:
                 frappe.logger().error(f"Failed to link activity {comm.name}: {str(e)}")
                 continue
 
         frappe.db.commit()
-        frappe.logger().info(f"✅ Successfully linked {len(communications)} historical activities to lead {lead_name}")
+        frappe.logger().info(f"Successfully linked {len(communications)} historical activities to lead {lead_name}")
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Link Historical Activities Failed")
-        frappe.logger().error(f"❌ Failed to link historical activities: {str(e)}")
+        frappe.logger().error(f"Failed to link historical activities: {str(e)}")
 
 
 def get_utm_params_from_data(data):
-    """
-    Extract UTM parameters from request data
-    ENHANCED: Checks multiple sources with priority
-    Priority: 1) Direct data keys, 2) page_url query params, 3) referrer query params
-    """
+    """Extract UTM parameters from request data"""
     utm_params = {
         'utm_source': None,
         'utm_medium': None,
         'utm_campaign': None,
         'utm_term': None,
         'utm_content': None,
-        'utm_campaign_id': None  # ✅ ADDED
+        'utm_campaign_id': None
     }
 
-    # Method 1: Direct from data (highest priority)
+    # Method 1: Direct from data
     for utm_key in utm_params.keys():
         if data.get(utm_key):
             utm_params[utm_key] = str(data.get(utm_key)).strip()
-    
-    # Also check for 'utm_id' as campaign_id alias
+
     if not utm_params['utm_campaign_id'] and data.get('utm_id'):
         utm_params['utm_campaign_id'] = str(data.get('utm_id')).strip()
 
-    # Method 2: Parse from page_url if not in data
+    # Method 2: Parse from page_url
     page_url = data.get('page_url') or data.get('page_location') or ''
     if page_url and '?' in page_url:
         try:
             parsed = urlparse(page_url)
             query_params = parse_qs(parsed.query)
-
             for utm_key in utm_params.keys():
                 if not utm_params[utm_key] and utm_key in query_params:
                     utm_params[utm_key] = query_params[utm_key][0].strip()
-                    frappe.logger().info(f"✅ Extracted {utm_key} from page_url: {utm_params[utm_key]}")
-            
-            # Also check for utm_id in URL
+                    frappe.logger().info(f"Extracted {utm_key} from page_url: {utm_params[utm_key]}")
             if not utm_params['utm_campaign_id'] and 'utm_id' in query_params:
                 utm_params['utm_campaign_id'] = query_params['utm_id'][0].strip()
-                frappe.logger().info(f"✅ Extracted utm_campaign_id from page_url utm_id: {utm_params['utm_campaign_id']}")
-                
+                frappe.logger().info(f"Extracted utm_campaign_id from page_url")
         except Exception as e:
             frappe.logger().error(f"Error parsing page_url for UTM: {str(e)}")
 
-    # Method 3: Parse from referrer if still not found
+    # Method 3: Parse from referrer
     referrer = data.get('referrer') or data.get('page_referrer') or ''
     if referrer and '?' in referrer:
         try:
             parsed = urlparse(referrer)
             query_params = parse_qs(parsed.query)
-
             for utm_key in utm_params.keys():
                 if not utm_params[utm_key] and utm_key in query_params:
                     utm_params[utm_key] = query_params[utm_key][0].strip()
-                    frappe.logger().info(f"✅ Extracted {utm_key} from referrer: {utm_params[utm_key]}")
-            
-            # Also check for utm_id in referrer
+                    frappe.logger().info(f"Extracted {utm_key} from referrer: {utm_params[utm_key]}")
             if not utm_params['utm_campaign_id'] and 'utm_id' in query_params:
                 utm_params['utm_campaign_id'] = query_params['utm_id'][0].strip()
-                frappe.logger().info(f"✅ Extracted utm_campaign_id from referrer utm_id: {utm_params['utm_campaign_id']}")
-                
+                frappe.logger().info(f"Extracted utm_campaign_id from referrer")
         except Exception as e:
             frappe.logger().error(f"Error parsing referrer for UTM: {str(e)}")
 
-    # Log final result
     captured_utm = {k: v for k, v in utm_params.items() if v}
     if captured_utm:
-        frappe.logger().info(f"📊 Final UTM Params: {json.dumps(captured_utm)}")
+        frappe.logger().info(f"Final UTM Params: {json.dumps(captured_utm)}")
     else:
-        frappe.logger().info(f"ℹ️ No UTM parameters found")
+        frappe.logger().info("No UTM parameters found")
 
     return utm_params

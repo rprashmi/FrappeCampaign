@@ -32,6 +32,17 @@ def get_custom_fields():
             {"fieldname": "tracking_info", "label": "Tracking Information", "fieldtype": "Code", "options": "JSON", "insert_after": "referrer"},
             
             {"fieldname": "full_tracking_details", "label": "Full Tracking Details", "fieldtype": "Code", "options": "JSON", "insert_after": "tracking_info", "read_only": 1, "description": "Complete tracking data including browser, device, geo, and client info"},
+        ],
+        
+        # ✅ NEW: Add Looker Studio URL field to CRM Organization
+        "CRM Organization": [
+            {"fieldname": "analytics_section", "label": "Analytics", "fieldtype": "Section Break", "insert_after": "website"},
+            
+            {"fieldname": "looker_studio_url", "label": "Looker Studio Dashboard", "fieldtype": "Data", "insert_after": "analytics_section", "description": "Embedded Looker Studio URL for GA4 analytics dashboard"},
+            
+            {"fieldname": "analytics_column", "fieldtype": "Column Break", "insert_after": "looker_studio_url"},
+            
+            {"fieldname": "ga4_property_id", "label": "GA4 Property ID", "fieldtype": "Data", "insert_after": "analytics_column", "description": "Google Analytics 4 Property ID (optional)"},
         ]
     }
 
