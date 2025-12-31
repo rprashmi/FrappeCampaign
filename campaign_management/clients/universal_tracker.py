@@ -38,6 +38,98 @@ ORGANIZATION_CONFIG = {
 }
 
 
+def normalize_utm_value(raw_value, field_type="source"):
+    """
+    Normalize UTM values to match Select field options (case-insensitive)
+    Handles all variations and ensures exact match with dropdown options
+    """
+    if not raw_value:
+        return None
+    
+    value = str(raw_value).strip()
+    if not value:
+        return None
+    
+    if field_type == "source":
+        # Map to Select options for utm_source
+        value_lower = value.lower()
+        
+        # Exact matches (case-insensitive)
+        source_map = {
+            "google": "Google",
+            "facebook": "Facebook",
+            "fb": "Facebook",
+            "linkedin": "LinkedIn",
+            "li": "LinkedIn",
+            "twitter": "Twitter",
+            "instagram": "Instagram",
+            "ig": "Instagram",
+            "email": "Email",
+            "direct": "Direct",
+            "referral": "Referral",
+            "organic": "Organic",
+            "bing": "Bing",
+            "youtube": "YouTube",
+            "yt": "YouTube",
+            "tiktok": "TikTok",
+            "whatsapp": "WhatsApp",
+            "wa": "WhatsApp"
+        }
+        
+        # Check for exact match first
+        if value_lower in source_map:
+            return source_map[value_lower]
+        
+        # Check for partial matches (e.g., "facebook.com" contains "facebook")
+        for key, proper_value in source_map.items():
+            if key in value_lower:
+                return proper_value
+        
+        # Default to Other if no match
+        return "Other"
+    
+    elif field_type == "medium":
+        # Map to Select options for utm_medium
+        value_lower = value.lower()
+        
+        medium_map = {
+            "cpc": "CPC",
+            "ppc": "PPC",
+            "cpm": "CPM",
+            "display": "Display",
+            "social": "Social",
+            "email": "Email",
+            "affiliate": "Affiliate",
+            "referral": "Referral",
+            "organic": "Organic",
+            "paid social": "Paid Social",
+            "paidsocial": "Paid Social",
+            "paid-social": "Paid Social",
+            "paid_social": "Paid Social",
+            "banner": "Banner",
+            "retargeting": "Retargeting",
+            "retarget": "Retargeting",
+            "video": "Video"
+        }
+        
+        # Check for exact match first
+        if value_lower in medium_map:
+            return medium_map[value_lower]
+        
+        # Check for partial matches
+        for key, proper_value in medium_map.items():
+            if key in value_lower:
+                return proper_value
+        
+        # Default to Other if no match
+        return "Other"
+    
+    # For campaign or other fields, return as-is
+    return value
+
+
+
+
 def determine_source(data, org_config):
     """Smart Source Detection - Maps to Frappe CRM standard sources"""
     
@@ -332,7 +424,7 @@ def submit_form(**kwargs):
         org_type = org_config["type"]
 
         frappe.logger().info(f"Organization: {org_name} ({org_type})")
-        
+
         # ✅ CRITICAL: Verify organization exists (does NOT auto-create)
         if not verify_organization_exists(org_name):
             return {
@@ -442,13 +534,17 @@ def submit_form(**kwargs):
 
             first_touch_updated = False
 
+            # ✅ UPDATED: Normalize UTM values before saving
             if utm_params.get('utm_source') and not lead.get('utm_source'):
-                lead.utm_source = utm_params.get('utm_source')
-                frappe.logger().info(f"Set FIRST-TOUCH utm_source: {utm_params.get('utm_source')}")
+                normalized_source = normalize_utm_value(utm_params.get('utm_source'), "source")
+                lead.utm_source = normalized_source
+                frappe.logger().info(f"Set FIRST-TOUCH utm_source: {normalized_source} (from: {utm_params.get('utm_source')})")
                 first_touch_updated = True
 
             if utm_params.get('utm_medium') and not lead.get('utm_medium'):
-                lead.utm_medium = utm_params.get('utm_medium')
+                normalized_medium = normalize_utm_value(utm_params.get('utm_medium'), "medium")
+                lead.utm_medium = normalized_medium
+                frappe.logger().info(f"Set FIRST-TOUCH utm_medium: {normalized_medium} (from: {utm_params.get('utm_medium')})")
                 first_touch_updated = True
 
             if utm_params.get('utm_campaign') and not lead.get('utm_campaign'):
@@ -508,6 +604,14 @@ def submit_form(**kwargs):
 
             source_type = "Form" if (email or phone) else "Landing Page"
 
+            # ✅ UPDATED: Normalize UTM values before saving
+            normalized_source = normalize_utm_value(utm_params.get('utm_source'), "source")
+            normalized_medium = normalize_utm_value(utm_params.get('utm_medium'), "medium")
+
+            frappe.logger().info(f"UTM Normalization:")
+            frappe.logger().info(f"  Source: {utm_params.get('utm_source')} → {normalized_source}")
+            frappe.logger().info(f"  Medium: {utm_params.get('utm_medium')} → {normalized_medium}")
+
             lead = frappe.get_doc({
                 "doctype": "CRM Lead",
                 "first_name": first_name,
@@ -524,8 +628,8 @@ def submit_form(**kwargs):
                 "ga_client_id": client_id,
                 "page_url": page_url,
                 "referrer": referrer,
-                "utm_source": utm_params.get('utm_source'),
-                "utm_medium": utm_params.get('utm_medium'),
+                "utm_source": normalized_source,
+                "utm_medium": normalized_medium,
                 "utm_campaign": utm_params.get('utm_campaign'),
                 "utm_campaign_id": utm_params.get('utm_campaign_id'),
                 "full_tracking_details": json.dumps(complete_tracking_data, indent=2)
@@ -537,6 +641,8 @@ def submit_form(**kwargs):
             frappe.logger().info(f"Lead created: {lead.name}")
             frappe.logger().info(f"   Source: {source}")
             frappe.logger().info(f"   Source Type: {source_type}")
+            frappe.logger().info(f"   UTM Source: {normalized_source}")
+            frappe.logger().info(f"   UTM Medium: {normalized_medium}")
 
             if client_id:
                 link_web_visitor_to_lead(client_id, lead.name)
@@ -572,7 +678,13 @@ def submit_form(**kwargs):
                 "lead": lead.name,
                 "organization": org_name,
                 "source_detected": source,
-                "utm_captured": {k: v for k, v in utm_params.items() if v},
+                "utm_captured": {
+                    "utm_source_raw": utm_params.get('utm_source'),
+                    "utm_source_normalized": normalized_source,
+                    "utm_medium_raw": utm_params.get('utm_medium'),
+                    "utm_medium_normalized": normalized_medium,
+                    "utm_campaign": utm_params.get('utm_campaign')
+                },
                 "is_new_lead": True
             }
 
@@ -583,7 +695,6 @@ def submit_form(**kwargs):
         frappe.logger().error("=" * 80)
         frappe.log_error(frappe.get_traceback(), "Universal Form Error")
         return {"success": False, "message": f"Error: {str(e)}"}
-
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def track_activity(**kwargs):
