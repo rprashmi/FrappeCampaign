@@ -6,7 +6,6 @@ def get_custom_fields():
             {"fieldname": "ga_client_id", "label": "GA4 Client ID", "fieldtype": "Data", "insert_after": "email_id", "in_list_view": 1, "in_standard_filter": 1, "bold": 1, "description": "Auto-captured from Google Analytics 4"},
             {"fieldname": "campaign_section", "label": "Campaign Information", "fieldtype": "Section Break", "insert_after": "lead_owner"},
 
-            # ✅ FIXED: Changed from Data to Select with common UTM sources
             {"fieldname": "utm_source",
              "label": "UTM Source",
              "fieldtype": "Select",
