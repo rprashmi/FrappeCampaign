@@ -37,7 +37,7 @@
         setTimeout(() => clearInterval(checkSidebar), 30000);
     }
  
-    document.readyState === 'loading' 
+    document.readyState === 'loading'
         ? document.addEventListener('DOMContentLoaded', addCustomMenuItems)
         : addCustomMenuItems();
 })();

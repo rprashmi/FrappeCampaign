@@ -11,7 +11,8 @@
   "website",
   "first_seen",
   "last_seen",
-  "converted_lead"
+  "converted_lead",
+  "device"
  ],
  "fields": [
   {
@@ -43,12 +44,18 @@
    "fieldtype": "Link",
    "label": "Converted Lead",
    "options": "CRM Lead"
+  },
+  {
+   "fieldname": "device",
+   "fieldtype": "Select",
+   "label": "Device",
+   "options": "Desktop\nMobile\nTablet"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-03 13:51:46.964573",
+ "modified": "2025-12-29 14:05:12.453525",
  "modified_by": "Administrator",
  "module": "Campaign Management",
  "name": "Web Visitor",
