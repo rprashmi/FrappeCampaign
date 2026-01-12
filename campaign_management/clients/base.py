@@ -1,15 +1,90 @@
 """
 Shared utilities for all client APIs - UPDATED VERSION
-Changes:
-1. Removed emojis from activity tracking
-2. Added collapsible URLs for better UI
-3. Cleaner, more professional activity display
+
 """
 import frappe
 from frappe.utils import now, format_datetime
 import json
 import re
 from urllib.parse import urlparse, parse_qs
+
+
+def get_ad_click_data(data):
+    ad_info = {
+        'ad_platform': None,
+        'ad_click_id': None,
+        'ad_click_timestamp': None,
+        'ad_landing_page': None
+    }
+    
+    # Map of click ID parameter names to platform names
+    click_id_map = {
+        'fbclid': 'Facebook/Instagram',
+        'gclid': 'Google Ads',
+        'msclkid': 'Microsoft Ads',
+        'li_fat_id': 'LinkedIn Ads',
+        'ttclid': 'TikTok Ads',
+        'twclid': 'Twitter Ads'
+    }
+    
+    # Method 1: Check direct parameters
+    for param_name, platform_name in click_id_map.items():
+        click_id = str(data.get(param_name) or "").strip()
+        if click_id:
+            ad_info['ad_platform'] = platform_name
+            ad_info['ad_click_id'] = click_id
+            ad_info['ad_click_timestamp'] = now()
+            ad_info['ad_landing_page'] = str(data.get('page_url') or data.get('page_location') or "")
+            frappe.logger().info(f"✅ Ad Click Detected: {platform_name} (from direct param: {param_name})")
+            frappe.logger().info(f"   Click ID: {click_id}")
+            return ad_info
+    
+    # Method 2: Parse from page_url
+    page_url = data.get('page_url') or data.get('page_location') or ''
+    if page_url and '?' in page_url:
+        try:
+            parsed = urlparse(page_url)
+            query_params = parse_qs(parsed.query)
+            
+            for param_name, platform_name in click_id_map.items():
+                if param_name in query_params:
+                    click_id = query_params[param_name][0].strip()
+                    if click_id:
+                        ad_info['ad_platform'] = platform_name
+                        ad_info['ad_click_id'] = click_id
+                        ad_info['ad_click_timestamp'] = now()
+                        ad_info['ad_landing_page'] = page_url.split('?')[0]
+                        frappe.logger().info(f"✅ Ad Click Detected: {platform_name} (from page_url: {param_name})")
+                        frappe.logger().info(f"   Click ID: {click_id}")
+                        return ad_info
+        except Exception as e:
+            frappe.logger().error(f"Error parsing page_url for ad click ID: {str(e)}")
+    
+    # Method 3: Parse from referrer
+    referrer = data.get('referrer') or data.get('page_referrer') or ''
+    if referrer and '?' in referrer:
+        try:
+            parsed = urlparse(referrer)
+            query_params = parse_qs(parsed.query)
+            
+            for param_name, platform_name in click_id_map.items():
+                if param_name in query_params:
+                    click_id = query_params[param_name][0].strip()
+                    if click_id:
+                        ad_info['ad_platform'] = platform_name
+                        ad_info['ad_click_id'] = click_id
+                        ad_info['ad_click_timestamp'] = now()
+                        ad_info['ad_landing_page'] = str(data.get('page_url') or data.get('page_location') or "")
+                        frappe.logger().info(f"✅ Ad Click Detected: {platform_name} (from referrer: {param_name})")
+                        frappe.logger().info(f"   Click ID: {click_id}")
+                        return ad_info
+        except Exception as e:
+            frappe.logger().error(f"Error parsing referrer for ad click ID: {str(e)}")
+    
+    # No ad click detected
+    frappe.logger().info("ℹ️ No ad click ID detected (organic/direct traffic)")
+    return ad_info
+
 
 
 def extract_browser_details(user_agent):
