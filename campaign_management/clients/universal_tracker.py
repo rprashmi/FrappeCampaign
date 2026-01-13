@@ -345,9 +345,7 @@ def user_login(**kwargs):
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def submit_form(**kwargs):
-    """
-    Form submission with Facebook ad enrichment
-    """
+    """Form submission with Facebook ad enrichment"""
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
     
@@ -395,13 +393,9 @@ def submit_form(**kwargs):
         utm_params = get_utm_params_from_data(data)
         fb_data = get_facebook_ad_data(data)
         
-        # Determine source
-        if fb_data['has_facebook_click']:
-            source = "Facebook"
-            source_type = "Advertisement"
-        else:
-            source = determine_source(data, org_config)
-            source_type = "Form"
+    
+        source = determine_source(data, org_config)
+        source_type = "Form" 
         
         # Check existing lead
         existing_lead = find_lead_cross_device(email, client_id, org_name)
@@ -440,7 +434,10 @@ def submit_form(**kwargs):
             }
         
         else:
-            # Create new lead
+            # Create new lead with normalized UTM
+            normalized_source = normalize_utm_value(utm_params.get('utm_source'), "source")
+            normalized_medium = normalize_utm_value(utm_params.get('utm_medium'), "medium")
+            
             lead = frappe.get_doc({
                 "doctype": "CRM Lead",
                 "first_name": first_name,
@@ -450,26 +447,26 @@ def submit_form(**kwargs):
                 "lead_company": company if company else None,
                 "status": "New",
                 "source": source,
-                "source_type": source_type,
+                "source_type": source_type,  
                 "source_name": str(data.get("formName") or "Contact Form"),
                 "website": page_url,
                 "organization": org_name,
                 "ga_client_id": client_id,
                 "page_url": page_url,
                 "referrer": referrer,
-                "utm_source": normalize_utm_value(utm_params.get('utm_source'), "source"),
-                "utm_medium": normalize_utm_value(utm_params.get('utm_medium'), "medium"),
+                "utm_source": normalized_source,
+                "utm_medium": normalized_medium,
                 "utm_campaign": utm_params.get('utm_campaign'),
                 "utm_campaign_id": utm_params.get('utm_campaign_id')
             })
             
-
+            # Enrich with Facebook data
             lead = enrich_lead_with_facebook_data(lead, data)
             
             lead.insert(ignore_permissions=True)
             frappe.db.commit()
             
-            # Link visitor and MOVE all historic activities to the lead
+            # Link visitor and MOVE all historic activities to lead
             if client_id:
                 link_web_visitor_to_lead(client_id, lead.name)
                 link_historical_activities_to_lead(client_id, lead.name)
@@ -501,7 +498,6 @@ def submit_form(**kwargs):
         frappe.logger().error(f"Form submission error: {str(e)}")
         frappe.log_error(frappe.get_traceback(), "Form Submit Error")
         return {"success": False, "message": str(e)}
-
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def track_activity(**kwargs):
