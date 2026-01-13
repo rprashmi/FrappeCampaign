@@ -1,8 +1,5 @@
 """
 Universal Tracker - COMPLETE VERSION WITH AD TRACKING
-✅ UTM parameters work correctly
-✅ Ad click tracking (fbclid, gclid, etc.)
-✅ Cross-device tracking
 """
 import frappe
 from frappe.utils import now
@@ -16,7 +13,7 @@ from campaign_management.clients.base import (
     add_activity_to_lead,
     get_utm_params_from_data,
     link_historical_activities_to_lead,
-    get_ad_click_data  # ✅ NEW
+    get_ad_click_data  
 )
 
 
@@ -90,13 +87,13 @@ def normalize_utm_value(raw_value, field_type="source"):
 
 def determine_source(data, org_config):
     """
-    ✅ UPDATED: Smart Source Detection - Checks ad click IDs FIRST
+    Smart Source Detection - Checks ad click IDs FIRST
     """
     frappe.logger().info("=" * 60)
     frappe.logger().info("DETERMINING SOURCE")
     frappe.logger().info("=" * 60)
 
-    # ✅ PRIORITY 0: Check for Ad Click IDs (HIGHEST PRIORITY)
+    #  Check for Ad Click IDs 
     ad_data = get_ad_click_data(data)
     if ad_data['ad_platform']:
         platform = ad_data['ad_platform']
@@ -115,7 +112,7 @@ def determine_source(data, org_config):
             frappe.logger().info("✅ Source: Campaign (from ad click ID)")
             return "Campaign"
 
-    # PRIORITY 1: Check UTM Source
+    # Check UTM Source
     utm_source = str(data.get("utm_source") or "").lower().strip()
     if utm_source:
         frappe.logger().info(f"🎯 Found UTM Source: '{utm_source}'")
@@ -140,7 +137,7 @@ def determine_source(data, org_config):
             frappe.logger().info("✅ Source: Campaign (from UTM keyword)")
             return "Campaign"
 
-    # PRIORITY 2: Check UTM Medium
+    # Check UTM Medium
     utm_medium = str(data.get("utm_medium") or "").lower().strip()
     if utm_medium:
         if utm_medium in ['cpc', 'ppc', 'paid', 'display', 'paid_social']:
@@ -155,7 +152,7 @@ def determine_source(data, org_config):
             frappe.logger().info("✅ Source: Mass Mailing (from UTM Medium)")
             return "Mass Mailing"
 
-    # PRIORITY 3: Check Referrer
+    # Check Referrer
     referrer = str(data.get("referrer") or data.get("page_referrer") or "").lower().strip()
     if referrer and referrer not in ['direct', '', 'null', 'undefined']:
         try:
@@ -270,13 +267,12 @@ def verify_organization_exists(org_name):
     """Check if organization exists in Frappe"""
     exists = frappe.db.exists("CRM Organization", org_name)
     if not exists:
-        frappe.logger().error(f"❌ Organization '{org_name}' does NOT exist!")
+        frappe.logger().error(f" Organization '{org_name}' does NOT exist!")
     return exists
 
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def user_login(**kwargs):
-    """✅ UPDATED: User Login with Ad Tracking"""
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
 
@@ -312,7 +308,7 @@ def user_login(**kwargs):
             last_name = name_parts[1].title() if len(name_parts) > 1 else ""
             source = determine_source(data, org_config)
 
-            # ✅ Get ad tracking data
+            # Get ad tracking data
             ad_data = get_ad_click_data(data)
 
             new_lead = frappe.get_doc({
@@ -349,7 +345,9 @@ def user_login(**kwargs):
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def submit_form(**kwargs):
-    """✅ UPDATED: Form Submission with Ad Tracking"""
+    """
+    Form submission with Facebook ad enrichment
+    """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
     
@@ -359,19 +357,20 @@ def submit_form(**kwargs):
         
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
-        org_type = org_config["type"]
         
         if not verify_organization_exists(org_name):
             return {"success": False, "message": f"Organization '{org_name}' not found"}
         
-        # ✅ Extract UTM and Ad data
-        utm_params = get_utm_params_from_data(data)
-        ad_data = get_ad_click_data(data)
-        
-        normalized_source = normalize_utm_value(utm_params.get('utm_source'), "source")
-        normalized_medium = normalize_utm_value(utm_params.get('utm_medium'), "medium")
-        
-        source = determine_source(data, org_config)
+        from campaign_management.clients.base import (
+            extract_browser_details,
+            get_geo_info_from_ip,
+            link_web_visitor_to_lead,
+            add_activity_to_lead,
+            get_utm_params_from_data,
+            link_historical_activities_to_lead,
+            get_facebook_ad_data,
+            enrich_lead_with_facebook_data
+        )
         
         # Extract form fields
         first_name = str(data.get("firstName") or data.get("first_name") or "").strip()
@@ -385,7 +384,7 @@ def submit_form(**kwargs):
         if not first_name or (not email and not phone):
             return {"success": False, "message": "Name and Email/Phone required"}
         
-        # Get tracking info
+        # Tracking data
         user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
         ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
         page_url = str(data.get("page_url") or "")
@@ -393,36 +392,22 @@ def submit_form(**kwargs):
         
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
+        utm_params = get_utm_params_from_data(data)
+        fb_data = get_facebook_ad_data(data)
         
-        geo_location = ""
-        if geo_info.get('city') and geo_info.get('country'):
-            geo_location = f"{geo_info['city']}, {geo_info['country']}"
-        elif geo_info.get('country'):
-            geo_location = geo_info['country']
-        
-        # Build tracking data
-        complete_tracking_data = {
-            "browser": browser_details,
-            "geo": geo_info,
-            "utm": {
-                "utm_source_raw": utm_params.get('utm_source'),
-                "utm_source_normalized": normalized_source,
-                "utm_medium_raw": utm_params.get('utm_medium'),
-                "utm_medium_normalized": normalized_medium,
-                "utm_campaign": utm_params.get('utm_campaign'),
-                "utm_campaign_id": utm_params.get('utm_campaign_id')
-            },
-            "ad_tracking": ad_data,
-            "timestamp": now(),
-            "organization_type": org_type,
-            "source": source,
-            "referrer": referrer
-        }
+        # Determine source
+        if fb_data['has_facebook_click']:
+            source = "Facebook"
+            source_type = "Advertisement"
+        else:
+            source = determine_source(data, org_config)
+            source_type = "Form"
         
         # Check existing lead
         existing_lead = find_lead_cross_device(email, client_id, org_name)
         
         if existing_lead:
+            # Update existing lead
             lead = frappe.get_doc("CRM Lead", existing_lead['name'])
             
             if phone and not lead.mobile_no:
@@ -430,38 +415,19 @@ def submit_form(**kwargs):
             if company and not lead.get('lead_company'):
                 lead.lead_company = company
             
-            # Update first-touch UTM if empty
-            if normalized_source and not lead.get('utm_source'):
-                lead.utm_source = normalized_source
-            if normalized_medium and not lead.get('utm_medium'):
-                lead.utm_medium = normalized_medium
-            if utm_params.get('utm_campaign') and not lead.get('utm_campaign'):
-                lead.utm_campaign = utm_params.get('utm_campaign')
-            if utm_params.get('utm_campaign_id') and not lead.get('utm_campaign_id'):
-                lead.utm_campaign_id = utm_params.get('utm_campaign_id')
-            
-            # ✅ Update first-touch ad data if empty
-            if ad_data['ad_platform'] and not lead.get('ad_platform'):
-                lead.ad_platform = ad_data['ad_platform']
-                lead.ad_click_id = ad_data['ad_click_id']
-                lead.ad_click_timestamp = ad_data['ad_click_timestamp']
-                lead.ad_landing_page = ad_data['ad_landing_page']
-            
             lead.add_comment("Info", f"Form submission: {message}")
             lead.save(ignore_permissions=True)
             
+            # Add form submission activity
             add_activity_to_lead(lead.name, {
                 "activity_type": "Form Submission",
                 "page_url": page_url,
                 "timestamp": now(),
                 "browser": f"{browser_details['browser']} on {browser_details['os']}",
                 "device": browser_details['device'],
-                "geo_location": geo_location,
+                "geo_location": f"{geo_info.get('city')}, {geo_info.get('country')}" if geo_info.get('city') else geo_info.get('country', ''),
                 "referrer": referrer,
-                "client_id": client_id,
-                "utm_source": normalized_source,
-                "utm_medium": normalized_medium,
-                "utm_campaign": utm_params.get('utm_campaign')
+                "client_id": client_id
             })
             
             frappe.db.commit()
@@ -474,7 +440,7 @@ def submit_form(**kwargs):
             }
         
         else:
-            # ✅ Create lead with UTM and Ad tracking data
+            # Create new lead
             lead = frappe.get_doc({
                 "doctype": "CRM Lead",
                 "first_name": first_name,
@@ -484,44 +450,40 @@ def submit_form(**kwargs):
                 "lead_company": company if company else None,
                 "status": "New",
                 "source": source,
-                "source_type": "Form",
+                "source_type": source_type,
                 "source_name": str(data.get("formName") or "Contact Form"),
                 "website": page_url,
                 "organization": org_name,
                 "ga_client_id": client_id,
                 "page_url": page_url,
                 "referrer": referrer,
-                "utm_source": normalized_source,
-                "utm_medium": normalized_medium,
+                "utm_source": normalize_utm_value(utm_params.get('utm_source'), "source"),
+                "utm_medium": normalize_utm_value(utm_params.get('utm_medium'), "medium"),
                 "utm_campaign": utm_params.get('utm_campaign'),
-                "utm_campaign_id": utm_params.get('utm_campaign_id'),
-                # ✅ Ad tracking fields
-                "ad_platform": ad_data['ad_platform'] or None,
-                "ad_click_id": ad_data['ad_click_id'] or None,
-                "ad_click_timestamp": ad_data['ad_click_timestamp'] or None,
-                "ad_landing_page": ad_data['ad_landing_page'] or None,
-                "full_tracking_details": json.dumps(complete_tracking_data, indent=2)
+                "utm_campaign_id": utm_params.get('utm_campaign_id')
             })
+            
+
+            lead = enrich_lead_with_facebook_data(lead, data)
             
             lead.insert(ignore_permissions=True)
             frappe.db.commit()
             
+            # Link visitor and MOVE all historic activities to the lead
             if client_id:
                 link_web_visitor_to_lead(client_id, lead.name)
                 link_historical_activities_to_lead(client_id, lead.name)
             
+            # Add form submission activity
             add_activity_to_lead(lead.name, {
                 "activity_type": "First Form Submission",
                 "page_url": page_url,
                 "timestamp": now(),
                 "browser": f"{browser_details['browser']} on {browser_details['os']}",
                 "device": browser_details['device'],
-                "geo_location": geo_location,
+                "geo_location": f"{geo_info.get('city')}, {geo_info.get('country')}" if geo_info.get('city') else geo_info.get('country', ''),
                 "referrer": referrer,
-                "client_id": client_id,
-                "utm_source": normalized_source,
-                "utm_medium": normalized_medium,
-                "utm_campaign": utm_params.get('utm_campaign')
+                "client_id": client_id
             })
             
             frappe.db.commit()
@@ -531,18 +493,21 @@ def submit_form(**kwargs):
                 "message": "Thank you! We'll contact you soon.",
                 "lead": lead.name,
                 "organization": org_name,
-                "is_new_lead": True
+                "is_new_lead": True,
+                "from_facebook_ad": fb_data['has_facebook_click']
             }
     
     except Exception as e:
         frappe.logger().error(f"Form submission error: {str(e)}")
-        frappe.logger().error(frappe.get_traceback())
+        frappe.log_error(frappe.get_traceback(), "Form Submit Error")
         return {"success": False, "message": str(e)}
 
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def track_activity(**kwargs):
-    """Universal Activity Tracker"""
+    """
+    Enhanced activity tracker with Facebook ad support
+    """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
 
@@ -558,14 +523,37 @@ def track_activity(**kwargs):
 
         client_id = data.get("ga_client_id") or data.get("client_id")
         activity_type = str(data.get("activity_type") or data.get("event") or "")
+        
+        if not client_id:
+            return {"success": False, "message": "client_id required"}
+
+        # Facebook Ad Click tracking
+        if activity_type == "Facebook Ad Click" or data.get("fbclid"):
+            frappe.logger().info("Processing Facebook Ad Click")
+            from campaign_management.clients.base import track_facebook_ad_click
+            
+            result = track_facebook_ad_click(client_id, data, org_name)
+            
+            return {
+                "success": result,
+                "message": "Facebook ad click tracked" if result else "Tracking failed",
+                "organization": org_name
+            }
+
+        # Regular activity tracking 
         page_url = str(data.get("page_url") or data.get("page_location") or "")
-
-        if not client_id or not activity_type:
-            return {"success": False, "message": "client_id and activity_type required"}
-
         user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
         ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
         referrer = str(data.get("referrer") or data.get("page_referrer") or "")
+
+        from campaign_management.clients.base import (
+            extract_browser_details,
+            get_geo_info_from_ip,
+            get_or_create_web_visitor,
+            link_web_visitor_to_lead,
+            add_activity_to_lead,
+            get_utm_params_from_data
+        )
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
@@ -616,4 +604,5 @@ def track_activity(**kwargs):
 
     except Exception as e:
         frappe.logger().error(f"Activity tracking error: {str(e)}")
+        frappe.log_error(frappe.get_traceback(), "Track Activity Error")
         return {"success": False, "message": str(e)}

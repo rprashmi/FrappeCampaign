@@ -295,10 +295,7 @@ def truncate_url(url, max_length=50):
 
 
 def add_activity_to_lead(lead_name, activity_data):
-    """
-    Add timeline activity to lead using Communication
-    ✅ UPDATED: Removed emojis, cleaner display, collapsible URLs
-    """
+    
     try:
         # Check if lead exists
         if lead_name and frappe.db.exists("CRM Lead", lead_name):
@@ -337,9 +334,7 @@ def add_activity_to_lead(lead_name, activity_data):
             lead_email = ""
             frappe.logger().info(f"Storing activity for future lead (visitor: {visitor_name})")
 
-        # ✅ CLEANED: Extract data WITHOUT emojis
         activity_type = activity_data.get('activity_type', 'Web Activity')
-        # Remove emojis from activity type
         activity_type = re.sub(r'[^\w\s\-\(\)%]', '', activity_type).strip()
         
         page_url = activity_data.get('page_url', '')
@@ -354,14 +349,20 @@ def add_activity_to_lead(lead_name, activity_data):
         utm_source = activity_data.get('utm_source')
         utm_medium = activity_data.get('utm_medium')
         utm_campaign = activity_data.get('utm_campaign')
-
-        # ✅ IMPROVED: Build clean, professional content with collapsible URLs
+        fbclid = activity_data.get('fbclid')
+        utm_content = activity_data.get('utm_content')
         lines = [f"<strong>{activity_type}</strong>"]
 
+        if fbclid:
+            fbclid_display = fbclid[:20] + '...' if len(fbclid) > 20 else fbclid
+            lines.append(f"<strong>Facebook Click ID:</strong> {fbclid_display}")    
+        if utm_campaign:
+            lines.append(f"<strong>Campaign:</strong> {utm_campaign}")        
+        if utm_content:
+            lines.append(f"<strong>Ad Creative:</strong> {utm_content}")      
         if page_url:
             display_url, full_url = truncate_url(page_url, 60)
             lines.append(f"<strong>Page:</strong> <a href='{full_url}' target='_blank' title='{full_url}'>{display_url}</a>")
-
         if cta_name:
             lines.append(f"<strong>CTA:</strong> {cta_name}")
         if cta_location:
@@ -525,3 +526,154 @@ def get_utm_params_from_data(data):
         frappe.logger().info("No UTM parameters found")
 
     return utm_params
+
+
+def get_facebook_ad_data(data):
+    """
+    Extract Facebook ad click data
+    Returns dict with fbclid and campaign info
+    """
+    fb_data = {
+        'has_facebook_click': False,
+        'fbclid': None,
+        'utm_campaign': None,
+        'utm_content': None,
+        'landing_page': None
+    }
+    
+    # Method 1: Direct parameter
+    fbclid = str(data.get('fbclid') or '').strip()
+    if fbclid:
+        fb_data['has_facebook_click'] = True
+        fb_data['fbclid'] = fbclid
+        fb_data['landing_page'] = str(data.get('page_url') or data.get('page_location') or '')
+        frappe.logger().info(f"✅ Facebook Ad Click: {fbclid}")
+    
+    # Method 2: Parse from URL
+    if not fbclid:
+        page_url = data.get('page_url') or data.get('page_location') or ''
+        if 'fbclid=' in page_url:
+            try:
+                from urllib.parse import urlparse, parse_qs
+                parsed = urlparse(page_url)
+                params = parse_qs(parsed.query)
+                if 'fbclid' in params:
+                    fbclid = params['fbclid'][0].strip()
+                    fb_data['has_facebook_click'] = True
+                    fb_data['fbclid'] = fbclid
+                    fb_data['landing_page'] = page_url.split('?')[0]
+                    frappe.logger().info(f"Facebook Click from URL: {fbclid}")
+            except Exception as e:
+                frappe.logger().error(f"Error parsing URL: {str(e)}")
+    
+    # Get campaign info
+    fb_data['utm_campaign'] = str(data.get('utm_campaign') or '').strip()
+    fb_data['utm_content'] = str(data.get('utm_content') or '').strip()
+    
+    return fb_data
+
+
+def track_facebook_ad_click(client_id, data, org_name):
+    """
+    Track Facebook ad click as activity
+    Works for both anonymous visitors and existing leads
+    """
+    try:
+        fb_data = get_facebook_ad_data(data)
+        
+        if not fb_data['has_facebook_click']:
+            return False
+        
+        # Get visitor
+        visitor = get_or_create_web_visitor(client_id, data)
+        
+        # Check if visitor is already a lead
+        lead_name = None
+        if visitor.converted_lead:
+            lead_name = visitor.converted_lead
+        else:
+            # Try to find by client_id
+            try:
+                lead_name = frappe.db.get_value(
+                    "CRM Lead",
+                    {"ga_client_id": client_id, "organization": org_name},
+                    "name"
+                )
+            except:
+                pass
+        
+        # Get tracking details
+        user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
+        ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
+        page_url = str(data.get("page_url") or "")
+        
+        browser_details = extract_browser_details(user_agent)
+        geo_info = get_geo_info_from_ip(ip_address)
+        
+        geo_location = ""
+        if geo_info.get('city') and geo_info.get('country'):
+            geo_location = f"{geo_info['city']}, {geo_info['country']}"
+        elif geo_info.get('country'):
+            geo_location = geo_info['country']
+        
+        # Create activity
+        activity_data = {
+            "activity_type": "Facebook Ad Click",
+            "page_url": page_url,
+            "timestamp": now(),
+            "browser": f"{browser_details['browser']} on {browser_details['os']}",
+            "device": browser_details['device'],
+            "geo_location": geo_location,
+            "referrer": str(data.get("referrer") or ""),
+            "client_id": client_id,
+            "fbclid": fb_data['fbclid'],
+            "utm_campaign": fb_data['utm_campaign']
+        }
+        
+        # Add activity (to lead if exists, to visitor if not)
+        add_activity_to_lead(lead_name, activity_data)
+        frappe.db.commit()
+        
+        if lead_name:
+            frappe.logger().info(f"Facebook ad click tracked for lead: {lead_name}")
+        else:
+            frappe.logger().info(f"Facebook ad click tracked for visitor (will link to lead later)")
+        
+        return True
+        
+    except Exception as e:
+        frappe.logger().error(f"Error tracking Facebook click: {str(e)}")
+        frappe.log_error(frappe.get_traceback(), "Facebook Ad Tracking Error")
+        return False
+
+
+def enrich_lead_with_facebook_data(lead_doc, data):
+    """
+    Add Facebook ad data to lead (first touch only)
+    """
+    fb_data = get_facebook_ad_data(data)
+    
+    if fb_data['has_facebook_click']:
+        # Only set if empty (first touch)
+        if not lead_doc.get('ad_platform'):
+            lead_doc.ad_platform = 'Facebook/Instagram'
+        
+        if not lead_doc.get('ad_click_id'):
+            lead_doc.ad_click_id = fb_data['fbclid']
+        
+        if not lead_doc.get('ad_click_timestamp'):
+            lead_doc.ad_click_timestamp = now()
+        
+        if not lead_doc.get('ad_landing_page'):
+            lead_doc.ad_landing_page = fb_data['landing_page']
+        
+        if fb_data['utm_campaign'] and not lead_doc.get('utm_campaign'):
+            lead_doc.utm_campaign = fb_data['utm_campaign']
+        
+        # Update source
+        if not lead_doc.get('source') or lead_doc.get('source') == 'Website':
+            lead_doc.source = 'Facebook'
+        
+        frappe.logger().info(f"Lead enriched with Facebook data")
+    
+    return lead_doc
