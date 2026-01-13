@@ -610,13 +610,15 @@ def track_facebook_ad_click(client_id, data, org_name):
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
         
+        utm_params = get_utm_params_from_data(data)
+        
         geo_location = ""
         if geo_info.get('city') and geo_info.get('country'):
             geo_location = f"{geo_info['city']}, {geo_info['country']}"
         elif geo_info.get('country'):
             geo_location = geo_info['country']
         
-        # Create activity
+        # reate activity with ALL UTM data
         activity_data = {
             "activity_type": "Facebook Ad Click",
             "page_url": page_url,
@@ -626,8 +628,13 @@ def track_facebook_ad_click(client_id, data, org_name):
             "geo_location": geo_location,
             "referrer": str(data.get("referrer") or ""),
             "client_id": client_id,
-            "fbclid": fb_data['fbclid'],
-            "utm_campaign": fb_data['utm_campaign']
+            "fbclid": fb_data['fbclid'],    
+            "utm_source": utm_params.get('utm_source'),
+            "utm_medium": utm_params.get('utm_medium'),
+            "utm_campaign": utm_params.get('utm_campaign') or fb_data['utm_campaign'],
+            "utm_content": utm_params.get('utm_content') or fb_data['utm_content'],
+            "utm_term": utm_params.get('utm_term'),
+            "utm_campaign_id": utm_params.get('utm_campaign_id')
         }
         
         # Add activity (to lead if exists, to visitor if not)
@@ -635,9 +642,9 @@ def track_facebook_ad_click(client_id, data, org_name):
         frappe.db.commit()
         
         if lead_name:
-            frappe.logger().info(f"Facebook ad click tracked for lead: {lead_name}")
+            frappe.logger().info(f"✅ Facebook ad click tracked for lead: {lead_name}")
         else:
-            frappe.logger().info(f"Facebook ad click tracked for visitor (will link to lead later)")
+            frappe.logger().info(f"✅ Facebook ad click tracked for visitor (will link to lead later)")
         
         return True
         
@@ -654,7 +661,7 @@ def enrich_lead_with_facebook_data(lead_doc, data):
     fb_data = get_facebook_ad_data(data)
     
     if fb_data['has_facebook_click']:
-        # Only set if empty (first touch)
+        # Only set if empty 
         if not lead_doc.get('ad_platform'):
             lead_doc.ad_platform = 'Facebook/Instagram'
         
