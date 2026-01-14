@@ -32,6 +32,13 @@ ORGANIZATION_CONFIG = {
         "type": "saas",
         "domains": ["walue.com", "waluetracking.m.frappe.cloud", "waluetracking.web.app"],
         "keywords": ["walue"]
+    },
+    "EE": {  
+        "org_name": "EE",
+        "org_website": "ee-dev.m.frappe.cloud",
+        "type": "education",  
+        "domains": ["ee-dev.m.frappe.cloud"],
+        "keywords": ["EE", "orbis", "education"]
     }
 }
 
@@ -371,12 +378,13 @@ def submit_form(**kwargs):
         )
         
         # Extract form fields
-        first_name = str(data.get("firstName") or data.get("first_name") or "").strip()
-        last_name = str(data.get("lastName") or data.get("last_name") or "").strip()
-        email = str(data.get("email") or "").strip().lower()
-        phone = str(data.get("phone") or data.get("mobile_no") or "").strip()
-        company = str(data.get("company") or "").strip()
-        message = str(data.get("message") or "").strip()
+        first_name = str(data.get("firstName") or data.get("First Name") or "").strip()
+        last_name = str(data.get("lastName") or data.get("Last Name") or "").strip()
+        email = str(data.get("email") or data.get("Email") or "").strip().lower()
+        phone = str(data.get("phone") or data.get("Mobile No") or "").strip()
+        gender = str(data.get("gender") or data.get("Gender") or "").strip()
+        company = ""
+        message = ""
         client_id = str(data.get("ga_client_id") or data.get("client_id") or "")
         
         if not first_name or (not email and not phone):
