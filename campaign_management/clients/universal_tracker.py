@@ -539,7 +539,7 @@ def submit_form(**kwargs):
                 "source": source,
                 "source_type": source_type,
                 "source_name": str(data.get("formName") or "Contact Form"),
-                "website": page_url if page_url else None,
+                "website": f"{urlparse(page_url).scheme}://{urlparse(page_url).netloc}"[:140] if page_url else None,
                 "organization": org_name,
                 "ga_client_id": client_id if client_id else None,
                 "page_url": page_url if page_url else None,
