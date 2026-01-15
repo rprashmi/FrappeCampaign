@@ -1,0 +1,133 @@
+[
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-ga_client_id",
+    "dt": "CRM Lead",
+    "fieldname": "ga_client_id",
+    "label": "GA4 Client ID",
+    "fieldtype": "Data",
+    "insert_after": "email_id",
+    "in_list_view": 1,
+    "in_standard_filter": 1,
+    "bold": 1,
+    "description": "Auto-captured from Google Analytics 4"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-campaign_section",
+    "dt": "CRM Lead",
+    "fieldname": "campaign_section",
+    "label": "Campaign Information",
+    "fieldtype": "Section Break",
+    "insert_after": "lead_owner"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-utm_source",
+    "dt": "CRM Lead",
+    "fieldname": "utm_source",
+    "label": "UTM Source",
+    "fieldtype": "Data",
+    "insert_after": "campaign_section"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-source_type",
+    "dt": "CRM Lead",
+    "fieldname": "source_type",
+    "label": "Source Type",
+    "fieldtype": "Select",
+    "options": "Landing Page\nForm",
+    "insert_after": "campaign_section",
+    "in_list_view": 1,
+    "in_standard_filter": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-utm_medium",
+    "dt": "CRM Lead",
+    "fieldname": "utm_medium",
+    "label": "UTM Medium",
+    "fieldtype": "Data",
+    "insert_after": "utm_source"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-source_name",
+    "dt": "CRM Lead",
+    "fieldname": "source_name",
+    "label": "Source Name",
+    "fieldtype": "Data",
+    "insert_after": "source_type",
+    "in_list_view": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-utm_campaign",
+    "dt": "CRM Lead",
+    "fieldname": "utm_campaign",
+    "label": "UTM Campaign",
+    "fieldtype": "Data",
+    "insert_after": "utm_medium"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-campaign_lead_link",
+    "dt": "CRM Lead",
+    "fieldname": "campaign_lead_link",
+    "label": "Campaign Lead",
+    "fieldtype": "Link",
+    "options": "Campaign Lead",
+    "insert_after": "source_name",
+    "in_list_view": 1,
+    "description": "Click to view detailed tracking information"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-page_url",
+    "dt": "CRM Lead",
+    "fieldname": "page_url",
+    "label": "Page URL",
+    "fieldtype": "Data",
+    "insert_after": "utm_campaign"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-campaign_column",
+    "dt": "CRM Lead",
+    "fieldname": "campaign_column",
+    "fieldtype": "Column Break",
+    "insert_after": "campaign_lead_link"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-referrer",
+    "dt": "CRM Lead",
+    "fieldname": "referrer",
+    "label": "Referrer",
+    "fieldtype": "Data",
+    "insert_after": "page_url"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-tracking_info",
+    "dt": "CRM Lead",
+    "fieldname": "tracking_info",
+    "label": "Tracking Information",
+    "fieldtype": "Code",
+    "options": "JSON",
+    "insert_after": "referrer"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "CRM Lead-full_tracking_details",
+    "dt": "CRM Lead",
+    "fieldname": "full_tracking_details",
+    "label": "Full Tracking Details",
+    "fieldtype": "Code",
+    "options": "JSON",
+    "insert_after": "ga_client_id",
+    "read_only": 1,
+    "description": "Complete tracking data including browser, device, geo, and client info"
+  }
+]

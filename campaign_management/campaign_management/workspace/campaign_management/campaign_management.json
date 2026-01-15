@@ -1,0 +1,162 @@
+{
+ "app": "campaign_management",
+ "charts": [
+  {
+   "chart_name": "Leads By City",
+   "label": "Leads By City"
+  }
+ ],
+ "content": "[{\"id\":\"NtyY1FCjEV\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Campaign Management</span>\",\"col\":12}},{\"id\":\"jeBme5nLhd\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"CM dashboard\",\"col\":12}},{\"id\":\"bJi29R3D35\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Leads By City\",\"col\":12}}]",
+ "creation": "2025-11-14 23:25:11.979002",
+ "custom_blocks": [
+  {
+   "custom_block_name": "CM dashboard",
+   "label": "CM dashboard"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "projects",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Campaign Management",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Landing Page",
+   "link_count": 0,
+   "link_to": "Landing Page",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Form",
+   "link_count": 0,
+   "link_to": "Campaign Forms",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Campaign",
+   "link_count": 0,
+   "link_to": "Campaigns",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Landing Page",
+   "link_count": 0,
+   "link_to": "Landing Page",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Form",
+   "link_count": 0,
+   "link_to": "Campaign Forms",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Campaign",
+   "link_count": 0,
+   "link_to": "Campaigns",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Landing Page",
+   "link_count": 0,
+   "link_to": "Landing Page",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Form",
+   "link_count": 0,
+   "link_to": "Campaign Forms",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Campaign",
+   "link_count": 0,
+   "link_to": "Campaigns",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Landing Page",
+   "link_count": 0,
+   "link_to": "Landing Page",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Form",
+   "link_count": 0,
+   "link_to": "Campaign Forms",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Create Campaign",
+   "link_count": 0,
+   "link_to": "Campaigns",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2025-11-26 17:43:32.617179",
+ "modified_by": "Administrator",
+ "module": "Campaign Management",
+ "name": "Campaign Management",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 28.0,
+ "shortcuts": [],
+ "title": "Campaign Management",
+ "type": "Workspace"
+}

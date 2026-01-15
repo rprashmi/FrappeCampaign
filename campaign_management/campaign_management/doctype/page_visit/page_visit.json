@@ -1,0 +1,206 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-11-21 11:17:09.094027",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_lstt",
+  "visit_id",
+  "source_type",
+  "source_name",
+  "visitor_ip",
+  "user_agent",
+  "browser_name",
+  "browser_version",
+  "os_name",
+  "os_version",
+  "device_type",
+  "country",
+  "city",
+  "region",
+  "isp",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "page_url",
+  "referrer",
+  "screen_resolution",
+  "viewport_size",
+  "timezone",
+  "language",
+  "visited_at",
+  "session_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_lstt",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "visit_id",
+   "fieldtype": "Read Only",
+   "label": "Visit Id"
+  },
+  {
+   "fieldname": "source_type",
+   "fieldtype": "Data",
+   "label": "Source Type",
+   "options": "Landing Page \nForm"
+  },
+  {
+   "fieldname": "source_name",
+   "fieldtype": "Data",
+   "label": "Source Name"
+  },
+  {
+   "fieldname": "visitor_ip",
+   "fieldtype": "Data",
+   "label": "Visitor IP"
+  },
+  {
+   "fieldname": "user_agent",
+   "fieldtype": "Long Text",
+   "label": "User Agent"
+  },
+  {
+   "fieldname": "browser_name",
+   "fieldtype": "Data",
+   "label": "Browser Name"
+  },
+  {
+   "fieldname": "browser_version",
+   "fieldtype": "Data",
+   "label": "Browser Version"
+  },
+  {
+   "fieldname": "os_name",
+   "fieldtype": "Data",
+   "label": "OS Name"
+  },
+  {
+   "fieldname": "os_version",
+   "fieldtype": "Data",
+   "label": "OS Version"
+  },
+  {
+   "fieldname": "device_type",
+   "fieldtype": "Data",
+   "label": "Device Type"
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "region",
+   "fieldtype": "Data",
+   "label": "Region"
+  },
+  {
+   "fieldname": "isp",
+   "fieldtype": "Data",
+   "label": "ISP"
+  },
+  {
+   "fieldname": "utm_source",
+   "fieldtype": "Data",
+   "label": "UTM Source"
+  },
+  {
+   "fieldname": "utm_medium",
+   "fieldtype": "Data",
+   "label": "UTM Medium"
+  },
+  {
+   "fieldname": "utm_campaign",
+   "fieldtype": "Data",
+   "label": "UTM Campaign"
+  },
+  {
+   "fieldname": "utm_term",
+   "fieldtype": "Data",
+   "label": "UTM Term"
+  },
+  {
+   "fieldname": "utm_content",
+   "fieldtype": "Data",
+   "label": "UTM Content"
+  },
+  {
+   "fieldname": "page_url",
+   "fieldtype": "Data",
+   "label": "Page URL"
+  },
+  {
+   "fieldname": "referrer",
+   "fieldtype": "Data",
+   "label": "Referrer"
+  },
+  {
+   "fieldname": "screen_resolution",
+   "fieldtype": "Data",
+   "label": "Screen Resolution"
+  },
+  {
+   "fieldname": "viewport_size",
+   "fieldtype": "Data",
+   "label": "Viewport Size"
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Data",
+   "label": "Timezone"
+  },
+  {
+   "fieldname": "language",
+   "fieldtype": "Data",
+   "label": "Language"
+  },
+  {
+   "fieldname": "visited_at",
+   "fieldtype": "Datetime",
+   "label": "Visited At"
+  },
+  {
+   "fieldname": "session_id",
+   "fieldtype": "Data",
+   "label": "Session Id"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-21 14:47:56.707618",
+ "modified_by": "Administrator",
+ "module": "Campaign Management",
+ "name": "Page Visit",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
