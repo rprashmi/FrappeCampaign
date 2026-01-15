@@ -242,25 +242,58 @@ def get_request_data():
         frappe.logger().error(f"Error reading request data: {str(e)}")
     return data
 
-
 def identify_organization(data):
-    """Identify organization from request data"""
+    """
+    Enhanced organization identification - checks multiple sources
+    """
+    # Method 1: Check explicit organization parameter (optional)
     org_identifier = str(data.get("organization") or "").lower().strip()
     if org_identifier in ORGANIZATION_CONFIG:
+        frappe.logger().info(f"Org identified by parameter: {org_identifier}")
         return ORGANIZATION_CONFIG[org_identifier]
 
+    # Method 2: Check page_url domain
     page_url = str(data.get("page_url") or data.get("page_location") or "").lower()
     if page_url:
         try:
             parsed = urlparse(page_url)
             domain = parsed.netloc or parsed.path.split('/')[0]
+            frappe.logger().info(f"Checking domain: {domain}")
+            # Check exact domain match
             for org_key, config in ORGANIZATION_CONFIG.items():
                 for configured_domain in config["domains"]:
-                    if configured_domain in domain:
+                    if domain == configured_domain or configured_domain in domain:
+                        frappe.logger().info(f"Org matched by domain: {org_key} ({configured_domain})")
                         return config
-        except:
-            pass
+        except Exception as e:
+            frappe.logger().error(f"Error parsing page_url: {str(e)}")
 
+    # Method 3: Check referrer domain
+    referrer = str(data.get("referrer") or data.get("page_referrer") or "").lower()
+    if referrer and referrer not in ['direct', '', 'null', 'undefined']:
+        try:
+            parsed = urlparse(referrer)
+            domain = parsed.netloc
+            frappe.logger().info(f"Checking referrer domain: {domain}")
+            for org_key, config in ORGANIZATION_CONFIG.items():
+                for configured_domain in config["domains"]:
+                    if domain == configured_domain or configured_domain in domain:
+                        frappe.logger().info(f"Org matched by referrer: {org_key} ({configured_domain})")
+                        return config
+        except Exception as e:
+            frappe.logger().error(f"Error parsing referrer: {str(e)}")
+
+    # Method 4: Check current Frappe site
+    current_site = frappe.local.site
+    frappe.logger().info(f"Checking current site: {current_site}")
+    for org_key, config in ORGANIZATION_CONFIG.items():
+        for configured_domain in config["domains"]:
+            if configured_domain in current_site:
+                frappe.logger().info(f"Org matched by site: {org_key}")
+                return config
+
+    # Fallback: Return default or unknown
+    frappe.logger().warning(f"No organization match found. Using fallback.")
     return ORGANIZATION_CONFIG.get("walue", {
         "org_name": "Unknown Organization",
         "org_website": frappe.local.site,
@@ -268,7 +301,7 @@ def identify_organization(data):
         "domains": [],
         "keywords": []
     })
-
+ 
 
 def verify_organization_exists(org_name):
     """Check if organization exists in Frappe"""
