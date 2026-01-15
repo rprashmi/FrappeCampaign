@@ -611,68 +611,69 @@ def submit_form(**kwargs):
         
         return {"success": False, "message": error_msg}
 
-
 @frappe.whitelist(allow_guest=True, methods=['POST'])
 def track_activity(**kwargs):
     """
-    Enhanced activity tracker with Facebook ad support
+    Universal Activity Tracker - Optimized for Facebook Ads and GTM
+    Ensures activities are tracked for existing leads or stored anonymously for new ones.
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
-
+ 
     try:
+        # 1. Gather all data sources
         data = get_request_data()
         data.update(kwargs)
-
+ 
+        # 2. Identify and verify Organization
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
-
+ 
         if not verify_organization_exists(org_name):
-            return {"success": False, "message": f"Organization '{org_name}' not configured"}
-
+            return {
+                "success": False,
+                "message": f"Organization '{org_name}' not configured."
+            }
+ 
         client_id = data.get("ga_client_id") or data.get("client_id")
         activity_type = str(data.get("activity_type") or data.get("event") or "")
-        
-        if not client_id:
-            return {"success": False, "message": "client_id required"}
-
-        # Facebook Ad Click tracking
-        if activity_type == "Facebook Ad Click" or data.get("fbclid"):
-            frappe.logger().info("📱 Processing Facebook Ad Click")
-            from campaign_management.clients.base import track_facebook_ad_click
-            
-            result = track_facebook_ad_click(client_id, data, org_name)
-            
-            return {
-                "success": result,
-                "message": "Facebook ad click tracked" if result else "Tracking failed",
-                "organization": org_name
-            }
-
-        # Regular activity tracking 
-        page_url = str(data.get("page_url") or data.get("page_location") or "")
-        user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
-        ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
-        referrer = str(data.get("referrer") or data.get("page_referrer") or "")
-
+       
+        if not client_id or not activity_type:
+            return {"success": False, "message": "client_id and activity_type required"}
+ 
         from campaign_management.clients.base import (
             extract_browser_details,
             get_geo_info_from_ip,
             get_or_create_web_visitor,
             link_web_visitor_to_lead,
             add_activity_to_lead,
-            get_utm_params_from_data
+            get_utm_params_from_data,
+            track_facebook_ad_click
         )
-
+ 
+       
+        if activity_type == "Facebook Ad Click" or data.get("fbclid"):
+            frappe.logger().info(f"Processing Facebook Ad Click for {client_id}")
+            result = track_facebook_ad_click(client_id, data, org_name)
+ 
+ 
+        user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
+        ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
+        page_url = str(data.get("page_url") or data.get("page_location") or "")
+        referrer = str(data.get("referrer") or data.get("page_referrer") or "")
+ 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
         utm_params = get_utm_params_from_data(data)
-
+ 
         geo_location = f"{geo_info.get('city')}, {geo_info.get('country')}" if geo_info.get('city') else geo_info.get('country', '')
-
+ 
+ 
+        data['user_agent'] = user_agent
         visitor = get_or_create_web_visitor(client_id, data)
         frappe.db.set_value("Web Visitor", visitor.name, "last_seen", now(), update_modified=False)
-
+ 
+       
         lead_name = None
         if visitor.converted_lead:
             try:
@@ -681,37 +682,49 @@ def track_activity(**kwargs):
                     lead_name = visitor.converted_lead
             except:
                 pass
-
-        if not lead_name and client_id:
-            try:
-                lead_name = frappe.db.get_value("CRM Lead", {"ga_client_id": client_id, "organization": org_name}, "name")
-                if lead_name:
-                    link_web_visitor_to_lead(client_id, lead_name)
-            except:
-                pass
-
-        add_activity_to_lead(lead_name, {
+ 
+        if not lead_name:
+            lead_name = frappe.db.get_value(
+                "CRM Lead",
+                {"ga_client_id": client_id, "organization": org_name},
+                "name"
+            )
+            if lead_name:
+                link_web_visitor_to_lead(client_id, lead_name)
+ 
+        percent_scrolled = data.get("percent_scrolled", "")
+        if "scroll" in activity_type.lower() and percent_scrolled:
+            activity_type = f"Scroll {str(percent_scrolled).replace('scroll_', '')}%"
+ 
+        product_name = data.get("product_name") or data.get("feature_name") or data.get("service_name") or ""
+ 
+        success = add_activity_to_lead(lead_name, {
             "activity_type": activity_type,
             "page_url": page_url,
+            "product_name": product_name,
+            "cta_name": str(data.get("cta_name") or ""),
+            "cta_location": str(data.get("cta_location") or ""),
             "timestamp": now(),
             "browser": f"{browser_details['browser']} on {browser_details['os']}",
             "device": browser_details['device'],
             "geo_location": geo_location,
             "referrer": referrer,
             "client_id": client_id,
+            "user_agent": user_agent,
             **utm_params
         })
-
+ 
         frappe.db.commit()
-
+ 
         return {
             "success": True,
             "visitor": visitor.name,
             "linked_lead": lead_name,
-            "organization": org_name
+            "organization": org_name,
+            "utm_captured": {k: v for k, v in utm_params.items() if v}
         }
-
+ 
     except Exception as e:
-        frappe.logger().error(f"Activity tracking error: {str(e)}")
+        frappe.logger().error(f"ACTIVITY TRACKING ERROR: {str(e)}")
         frappe.log_error(frappe.get_traceback(), "Track Activity Error")
         return {"success": False, "message": str(e)}
