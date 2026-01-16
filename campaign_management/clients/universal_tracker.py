@@ -659,8 +659,8 @@ def track_activity(**kwargs):
 
         if not lead_name and client_id:
             lead_name = frappe.db.get_value(
-                "CRM Lead",
                 {
+                    "doctype": "CRM Lead",
                     "ga_client_id": client_id,
                     "organization": org_name
                 },
@@ -668,7 +668,7 @@ def track_activity(**kwargs):
             )
             if lead_name:
                 link_web_visitor_to_lead(client_id, lead_name)
-                
+
         percent_scrolled = data.get("percent_scrolled", "")
         if "scroll" in activity_type.lower() and percent_scrolled:
             if isinstance(percent_scrolled, str):

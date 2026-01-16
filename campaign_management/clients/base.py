@@ -269,49 +269,28 @@ def get_or_create_web_visitor(client_id, data):
 def link_web_visitor_to_lead(client_id, lead_name):
     """Link Web Visitor to Lead"""
     try:
-        
-        frappe.logger().info(f"🔗 Linking visitor to lead...")
-        frappe.logger().info(f"   Client ID: {client_id}")
-        frappe.logger().info(f"   Lead Name: {lead_name}")
-        
-        if not frappe.db.exists("CRM Lead", lead_name):
-            frappe.logger().error(f"INVALID LEAD NAME: {lead_name}")
-            frappe.logger().error(f"   This appears to be a lead_name/title, not a document ID!")
-            return False
-        else:
-            lead_title = frappe.db.get_value("CRM Lead", lead_name, "lead_name")
-            frappe.logger().info(f"Valid lead document confirmed: {lead_title}")
-        
         visitor_name = frappe.db.get_value(
             "Web Visitor",
             {"client_id": client_id},
             "name"
         )
-        
         if visitor_name:
             frappe.db.set_value(
                 "Web Visitor",
                 visitor_name,
                 "converted_lead",
-                lead_name,  
+                lead_name,
                 update_modified=False
             )
-            frappe.db.commit() 
-            
             frappe.logger().info(
                 f"Linked Web Visitor {visitor_name} to Lead {lead_name}"
             )
-            return True
-        else:
-            frappe.logger().error(f"No Web Visitor found for client_id: {client_id}")
-            return False
-            
     except Exception as e:
         frappe.logger().error(
             f"Failed to link visitor {client_id}: {str(e)}"
         )
-        frappe.log_error(frappe.get_traceback(), "Link Visitor to Lead Failed")
-        return False
+
+
 
 
 def truncate_url(url, max_length=60):
@@ -460,25 +439,13 @@ def add_activity_to_lead(lead_name, activity_data):
 def link_historical_activities_to_lead(client_id, lead_name):
     """Link all visitor activities to lead"""
     try:
-        frappe.logger().info(f" Linking historical activities...")
-        frappe.logger().info(f"   Client ID: {client_id}")
-        frappe.logger().info(f"   Lead Name: {lead_name}")
-        
-        if not frappe.db.exists("CRM Lead", lead_name):
-            frappe.logger().error(f"INVALID LEAD: {lead_name} does not exist!")
-            return False
-        
         visitor_name = frappe.db.get_value(
             "Web Visitor",
             {"client_id": client_id},
             "name"
         )
-        
         if not visitor_name:
-            frappe.logger().info(f"No Web Visitor found for client_id: {client_id}")
-            return False
-        
-        frappe.logger().info(f"   Web Visitor: {visitor_name}")
+            return
 
         communications = frappe.get_all(
             "Communication",
@@ -486,55 +453,24 @@ def link_historical_activities_to_lead(client_id, lead_name):
                 "reference_doctype": "Web Visitor",
                 "reference_name": visitor_name
             },
-            fields=["name", "subject", "creation"],
-            order_by="creation asc"
+            fields=["name"]
         )
-        
-        if not communications:
-            frappe.logger().info(f"ℹNo historical activities found for visitor {visitor_name}")
-            return True
-        
-        frappe.logger().info(f"   Found {len(communications)} activities to link")
 
-        linked_count = 0
         for comm in communications:
-            try:
-                comm_doc = frappe.get_doc("Communication", comm.name)
-                
-                if comm_doc.reference_doctype == "Web Visitor":
-                    old_ref = comm_doc.reference_name
-                    comm_doc.reference_doctype = "CRM Lead"
-                    comm_doc.reference_name = lead_name  
-                   
-                    lead_email = frappe.db.get_value("CRM Lead", lead_name, "email")
-                    if lead_email and not comm_doc.recipients:
-                        comm_doc.recipients = lead_email
-                    
-                    comm_doc.save(ignore_permissions=True)
-                    linked_count += 1
-                    
-                    frappe.logger().info(f" Linked: {comm.subject} (from {old_ref} to {lead_name})")
-                else:
-                    frappe.logger().info(f" Skipped: {comm.subject} (already linked to {comm_doc.reference_doctype})")
-                    
-            except Exception as e:
-                frappe.logger().error(f"Failed to link {comm.name}: {str(e)}")
-                continue
+            comm_doc = frappe.get_doc("Communication", comm.name)
+            comm_doc.reference_doctype = "CRM Lead"
+            comm_doc.reference_name = lead_name
+            comm_doc.save(ignore_permissions=True)
 
-        frappe.db.commit() 
-        
         frappe.logger().info(
-            f"Successfully linked {linked_count}/{len(communications)} historical activities to lead {lead_name}"
+            f"Linked {len(communications)} historical activities to lead {lead_name}"
         )
-        return True
 
     except Exception as e:
-        frappe.logger().error(f"Link historical activities failed: {str(e)}")
         frappe.log_error(
             frappe.get_traceback(),
             "Link Historical Activities Failed"
         )
-        return False
 
 
 def get_utm_params_from_data(data):
