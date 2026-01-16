@@ -270,7 +270,7 @@ def get_or_create_web_visitor(client_id, data):
     return visitor
 
 
-ddef link_historical_activities_to_lead(client_id, lead_name):
+def link_historical_activities_to_lead(client_id, lead_name):
     """When a lead is created, link all Web Visitor activities AND orphaned activities to this lead"""
     try:
         visitor_name = frappe.db.get_value("Web Visitor", {"client_id": client_id}, "name")
