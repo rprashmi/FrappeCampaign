@@ -561,52 +561,52 @@ def submit_form(**kwargs):
         }
 
             # Prepare lead data
-            lead_data = {
-                "doctype": "CRM Lead",
-                "first_name": first_name,
-                "last_name": last_name if last_name else None,
-                "email": email if email else None,
-                "mobile_no": phone if phone else None,
-                "gender": gender if gender else None,
-                "lead_company": company if company else None,
-                "country": country if country else None,
-                "status": "New",
-                "source": source,
-                "source_type": source_type,
-                "source_name": str(data.get("formName") or "Contact Form"),
-                "website": website_url if website_url else None,
-                "organization": org_name,
-                "ga_client_id": client_id if client_id else None,
-                "page_url": page_url if page_url else None,
-                "referrer": referrer if referrer else None,
-                "utm_source": normalized_source,
-                "utm_medium": normalized_medium,
-                "utm_campaign": utm_params.get('utm_campaign'),
-                "utm_campaign_id": utm_params.get('utm_campaign_id'),
-                "full_tracking_details": json.dumps(complete_tracking_data, indent=2)
-            }
+        lead_data = {
+            "doctype": "CRM Lead",
+            "first_name": first_name,
+            "last_name": last_name if last_name else None,
+            "email": email if email else None,
+            "mobile_no": phone if phone else None,
+            "gender": gender if gender else None,
+            "lead_company": company if company else None,
+            "country": country if country else None,
+            "status": "New",
+            "source": source,
+            "source_type": source_type,
+            "source_name": str(data.get("formName") or "Contact Form"),
+            "website": website_url if website_url else None,
+            "organization": org_name,
+            "ga_client_id": client_id if client_id else None,
+            "page_url": page_url if page_url else None,
+            "referrer": referrer if referrer else None,
+            "utm_source": normalized_source,
+            "utm_medium": normalized_medium,
+            "utm_campaign": utm_params.get('utm_campaign'),
+            "utm_campaign_id": utm_params.get('utm_campaign_id'),
+            "full_tracking_details": json.dumps(complete_tracking_data, indent=2)
+        }
             
-            frappe.logger().info("📄 Lead Data to Insert:")
-            frappe.logger().info(json.dumps(lead_data, indent=2, default=str))
+        frappe.logger().info("📄 Lead Data to Insert:")
+        frappe.logger().info(json.dumps(lead_data, indent=2, default=str))
             
             # Create lead
-            lead = frappe.get_doc(lead_data)
+        lead = frappe.get_doc(lead_data)
             
             # Enrich with Facebook data if available
-            lead = enrich_lead_with_facebook_data(lead, data)
+        lead = enrich_lead_with_facebook_data(lead, data)
             
             # Insert lead
-            lead.insert(ignore_permissions=True)
-            frappe.logger().info(f"✅ Lead CREATED: {lead.name}")
-            
-            frappe.db.commit()
-            frappe.logger().info("✅ DATABASE COMMITTED")
+        lead.insert(ignore_permissions=True)
+        frappe.logger().info(f"✅ Lead CREATED: {lead.name}")
+           
+        frappe.db.commit()
+        frappe.logger().info("✅ DATABASE COMMITTED")
             
             # Link visitor
-            if client_id:
-                link_web_visitor_to_lead(client_id, lead.name)
-                link_historical_activities_to_lead(client_id, lead.name)
-                frappe.logger().info(f"🔗 Linked visitor: {client_id}")
+        if client_id:
+            link_web_visitor_to_lead(client_id, lead.name)
+            link_historical_activities_to_lead(client_id, lead.name)
+            frappe.logger().info(f"🔗 Linked visitor: {client_id}")
             
             # Add form submission activity
             add_activity_to_lead(lead.name, {
@@ -632,7 +632,7 @@ def submit_form(**kwargs):
                 "from_facebook_ad": fb_data['has_facebook_click']
             }
     
-    except Exception as e:
+	except Exception as e:
         frappe.logger().error(frappe.get_traceback())
         return {"success": False, "message": str(e)}
 
