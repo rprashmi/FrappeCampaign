@@ -317,7 +317,7 @@ def submit_form(**kwargs):
     """
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
-    
+
     try:
         data = get_request_data()
         data.update(kwargs)
@@ -350,25 +350,25 @@ def submit_form(**kwargs):
         )
 
         first_name = str(
-            data.get("firstName") or 
-            data.get("first_name") or 
+            data.get("firstName") or
+            data.get("first_name") or
             data.get("First Name") or ""
         ).strip()
 
         last_name = str(
-            data.get("lastName") or 
-            data.get("last_name") or 
+            data.get("lastName") or
+            data.get("last_name") or
             data.get("Last Name") or ""
         ).strip()
 
         email = str(
-            data.get("lead_email") or 
+            data.get("lead_email") or
             data.get("email") or ""
         ).strip().lower()
 
         phone = str(
-            data.get("mobile") or 
-            data.get("mobileNo") or 
+            data.get("mobile") or
+            data.get("mobileNo") or
             data.get("mobile_no") or ""
         ).strip()
 
@@ -378,7 +378,7 @@ def submit_form(**kwargs):
         message = str(data.get("message") or data.get("comments") or "").strip()
 
         client_id = str(
-            data.get("ga_client_id") or 
+            data.get("ga_client_id") or
             data.get("client_id") or ""
         )
 
@@ -560,82 +560,9 @@ def submit_form(**kwargs):
             "from_facebook_ad": fb_data.get("has_facebook_click")
         }
 
-            # Prepare lead data
-        lead_data = {
-            "doctype": "CRM Lead",
-            "first_name": first_name,
-            "last_name": last_name if last_name else None,
-            "email": email if email else None,
-            "mobile_no": phone if phone else None,
-            "gender": gender if gender else None,
-            "lead_company": company if company else None,
-            "country": country if country else None,
-            "status": "New",
-            "source": source,
-            "source_type": source_type,
-            "source_name": str(data.get("formName") or "Contact Form"),
-            "website": website_url if website_url else None,
-            "organization": org_name,
-            "ga_client_id": client_id if client_id else None,
-            "page_url": page_url if page_url else None,
-            "referrer": referrer if referrer else None,
-            "utm_source": normalized_source,
-            "utm_medium": normalized_medium,
-            "utm_campaign": utm_params.get('utm_campaign'),
-            "utm_campaign_id": utm_params.get('utm_campaign_id'),
-            "full_tracking_details": json.dumps(complete_tracking_data, indent=2)
-        }
-            
-        frappe.logger().info("📄 Lead Data to Insert:")
-        frappe.logger().info(json.dumps(lead_data, indent=2, default=str))
-            
-            # Create lead
-        lead = frappe.get_doc(lead_data)
-            
-            # Enrich with Facebook data if available
-        lead = enrich_lead_with_facebook_data(lead, data)
-            
-            # Insert lead
-        lead.insert(ignore_permissions=True)
-        frappe.logger().info(f"✅ Lead CREATED: {lead.name}")
-           
-        frappe.db.commit()
-        frappe.logger().info("✅ DATABASE COMMITTED")
-            
-            # Link visitor
-        if client_id:
-            link_web_visitor_to_lead(client_id, lead.name)
-            link_historical_activities_to_lead(client_id, lead.name)
-            frappe.logger().info(f"🔗 Linked visitor: {client_id}")
-            
-            # Add form submission activity
-            add_activity_to_lead(lead.name, {
-                "activity_type": "First Form Submission",
-                "page_url": page_url,
-                "timestamp": now(),
-                "browser": f"{browser_details['browser']} on {browser_details['os']}",
-                "device": browser_details['device'],
-                "geo_location": f"{geo_info.get('city')}, {geo_info.get('country')}" if geo_info.get('city') else geo_info.get('country', ''),
-                "referrer": referrer,
-                "client_id": client_id
-            })
-            
-            frappe.db.commit()
-            frappe.logger().info("✅ FINAL DATABASE COMMIT")
-            
-            return {
-                "success": True,
-                "message": "Thank you! We'll contact you soon.",
-                "lead": lead.name,
-                "organization": org_name,
-                "is_new_lead": True,
-                "from_facebook_ad": fb_data['has_facebook_click']
-            }
-    
-	except Exception as e:
+    except Exception as e:
         frappe.logger().error(frappe.get_traceback())
         return {"success": False, "message": str(e)}
-
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -698,6 +625,7 @@ def track_activity(**kwargs):
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
         utm_params = get_utm_params_from_data(data)
+
         geo_location = ""
         if geo_info.get("city") and geo_info.get("country"):
             geo_location = f"{geo_info['city']}, {geo_info['country']}"
@@ -731,8 +659,8 @@ def track_activity(**kwargs):
 
         if not lead_name and client_id:
             lead_name = frappe.db.get_value(
-                "CRM Lead",
                 {
+                    "doctype": "CRM Lead",
                     "ga_client_id": client_id,
                     "organization": org_name
                 },
@@ -784,11 +712,5 @@ def track_activity(**kwargs):
 
     except Exception as e:
         frappe.logger().error(f"ACTIVITY TRACKING ERROR: {str(e)}")
-
         frappe.log_error(frappe.get_traceback(), "Track Activity Error")
         return {"success": False, "message": str(e)}
-        frappe.log_error(frappe.get_traceback(), "Activity Tracking Error")
-        return {
-            "success": False,
-            "message": str(e)
-        }
