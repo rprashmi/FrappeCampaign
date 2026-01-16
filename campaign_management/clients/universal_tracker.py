@@ -1,5 +1,5 @@
 """
-Universal Tracker - COMPLETE VERSION WITH AD TRACKING
+Universal Tracker - FIXED VERSION WITH ENHANCED DEBUGGING
 """
 import frappe
 from frappe.utils import now
@@ -37,8 +37,8 @@ ORGANIZATION_CONFIG = {
         "org_name": "EE",
         "org_website": "ee-dev.m.frappe.cloud",
         "type": "education",  
-        "domains": ["ee-dev.m.frappe.cloud", "localhost"],
-        "keywords": ["EE", "orbis"]
+        "domains": ["ee-dev.m.frappe.cloud"],
+        "keywords": ["EE", "orbis", "education"]
     }
 }
 
@@ -100,7 +100,7 @@ def determine_source(data, org_config):
     frappe.logger().info("DETERMINING SOURCE")
     frappe.logger().info("=" * 60)
 
-    #  Check for Ad Click IDs 
+    # ✅ 1. Check for Ad Click IDs 
     ad_data = get_ad_click_data(data)
     if ad_data['ad_platform']:
         platform = ad_data['ad_platform']
@@ -207,7 +207,6 @@ def find_lead_cross_device(email, client_id, org_name):
                 return existing_lead
         except Exception as e:
             frappe.logger().error(f"Error finding by email: {str(e)}")
-            return None
 
     if not existing_lead and client_id:
         try:
@@ -218,11 +217,10 @@ def find_lead_cross_device(email, client_id, org_name):
                 as_dict=True
             )
             if existing_lead:
-                frappe.logger().info(f" Found by client_id: {existing_lead.name}")
+                frappe.logger().info(f"✅ Found by client_id: {existing_lead.name}")
                 return existing_lead
         except Exception as e:
             frappe.logger().error(f"Error finding by client_id: {str(e)}")
-            return None
 
     return None
 
@@ -251,7 +249,7 @@ def identify_organization(data):
     """
     org_identifier = str(data.get("organization") or "").lower().strip()
     if org_identifier in ORGANIZATION_CONFIG:
-        frappe.logger().info(f"Org identified by parameter: {org_identifier}")
+        frappe.logger().info(f"✅ Org identified by parameter: {org_identifier}")
         return ORGANIZATION_CONFIG[org_identifier]
 
     page_url = str(data.get("page_url") or data.get("page_location") or "").lower()
@@ -260,12 +258,12 @@ def identify_organization(data):
             parsed = urlparse(page_url)
             domain = parsed.netloc or parsed.path.split('/')[0]
             
-            frappe.logger().info(f"Checking domain: {domain}")
+            frappe.logger().info(f"🔍 Checking domain: {domain}")
             
             for org_key, config in ORGANIZATION_CONFIG.items():
                 for configured_domain in config["domains"]:
                     if domain == configured_domain or configured_domain in domain:
-                        frappe.logger().info(f"Org matched by domain: {org_key} ({configured_domain})")
+                        frappe.logger().info(f"✅ Org matched by domain: {org_key} ({configured_domain})")
                         return config
         except Exception as e:
             frappe.logger().error(f"Error parsing page_url: {str(e)}")
@@ -276,27 +274,27 @@ def identify_organization(data):
             parsed = urlparse(referrer)
             domain = parsed.netloc
             
-            frappe.logger().info(f"Checking referrer domain: {domain}")
+            frappe.logger().info(f"🔍 Checking referrer domain: {domain}")
             
             for org_key, config in ORGANIZATION_CONFIG.items():
                 for configured_domain in config["domains"]:
                     if domain == configured_domain or configured_domain in domain:
-                        frappe.logger().info(f"Org matched by referrer: {org_key} ({configured_domain})")
+                        frappe.logger().info(f"✅ Org matched by referrer: {org_key} ({configured_domain})")
                         return config
         except Exception as e:
             frappe.logger().error(f"Error parsing referrer: {str(e)}")
 
     current_site = frappe.local.site
-    frappe.logger().info(f"Checking current site: {current_site}")
+    frappe.logger().info(f"🔍 Checking current site: {current_site}")
     
     for org_key, config in ORGANIZATION_CONFIG.items():
         for configured_domain in config["domains"]:
             if configured_domain in current_site:
-                frappe.logger().info(f"Org matched by site: {org_key}")
+                frappe.logger().info(f"✅ Org matched by site: {org_key}")
                 return config
 
-    frappe.logger().warning(f"No organization match found. Using fallback.")
-    return ORGANIZATION_CONFIG.get("EE", {
+    frappe.logger().warning(f"⚠️ No organization match found. Using fallback.")
+    return ORGANIZATION_CONFIG.get("walue", {
         "org_name": "Unknown Organization",
         "org_website": frappe.local.site,
         "type": "generic",
@@ -308,81 +306,8 @@ def verify_organization_exists(org_name):
     """Check if organization exists in Frappe"""
     exists = frappe.db.exists("CRM Organization", org_name)
     if not exists:
-        frappe.logger().error(f"Organization '{org_name}' does NOT exist!")
+        frappe.logger().error(f"❌ Organization '{org_name}' does NOT exist!")
     return exists
-
-
-
-@frappe.whitelist(allow_guest=True, methods=['POST'])
-def user_login(**kwargs):
-    frappe.set_user("Guest")
-    frappe.flags.ignore_csrf = True
-
-    try:
-        data = get_request_data()
-        data.update(kwargs)
-
-        email = str(data.get("email") or "").strip().lower()
-        client_id = str(data.get("ga_client_id") or data.get("client_id") or "")
-
-        if not email or not client_id:
-            return {"success": False, "message": "Email and client_id required"}
-
-        org_config = identify_organization(data)
-        org_name = org_config["org_name"]
-
-        if not verify_organization_exists(org_name):
-            return {"success": False, "message": f"Organization '{org_name}' not configured"}
-
-        lead = find_lead_cross_device(email, client_id, org_name)
-
-        if lead:
-            link_historical_activities_to_lead(client_id, lead['name'])
-            return {
-                "success": True,
-                "message": "Login successful",
-                "lead_id": lead['name'],
-                "user_name": email.split('@')[0].title()
-            }
-        else:
-            name_parts = email.split('@')[0].split('.')
-            first_name = name_parts[0].title() if name_parts else email.split('@')[0].title()
-            last_name = name_parts[1].title() if len(name_parts) > 1 else ""
-            source = determine_source(data, org_config)
-
-            # Get ad tracking data
-            ad_data = get_ad_click_data(data)
-
-            new_lead = frappe.get_doc({
-                "doctype": "CRM Lead",
-                "first_name": first_name,
-                "last_name": last_name,
-                "email": email,
-                "status": "New",
-                "source": source,
-                "organization": org_name,
-                "ga_client_id": client_id,
-                "ad_platform": ad_data['ad_platform'] or None,
-                "ad_click_id": ad_data['ad_click_id'] or None,
-                "ad_click_timestamp": ad_data['ad_click_timestamp'] or None,
-                "ad_landing_page": ad_data['ad_landing_page'] or None
-            })
-            new_lead.insert(ignore_permissions=True)
-            frappe.db.commit()
-
-            link_web_visitor_to_lead(client_id, new_lead.name)
-            link_historical_activities_to_lead(client_id, new_lead.name)
-
-            return {
-                "success": True,
-                "message": "Account created successfully",
-                "lead_id": new_lead.name,
-                "user_name": first_name
-            }
-
-    except Exception as e:
-        frappe.logger().error(f"Login error: {str(e)}")
-        return {"success": False, "message": str(e)}
 
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
@@ -634,13 +559,9 @@ def submit_form(**kwargs):
             # Enrich with Facebook data if available
             lead = enrich_lead_with_facebook_data(lead, data)
             
-            # Insert lead with bypassed permissions to allow after_insert hooks
-            frappe.flags.bypass_permission_check = True
-            try:
-                lead.insert(ignore_permissions=True)
-                frappe.logger().info(f"✅ Lead CREATED: {lead.name}")
-            finally:
-                frappe.flags.bypass_permission_check = False
+            # Insert lead
+            lead.insert(ignore_permissions=True)
+            frappe.logger().info(f"✅ Lead CREATED: {lead.name}")
             
             frappe.db.commit()
             frappe.logger().info("✅ DATABASE COMMITTED")
@@ -687,6 +608,7 @@ def submit_form(**kwargs):
         frappe.logger().error("=" * 80)
         
         frappe.log_error(traceback, "Form Submit Error")
+        
         return {"success": False, "message": error_msg}
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
