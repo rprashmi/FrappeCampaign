@@ -525,6 +525,15 @@ def submit_form(**kwargs):
             frappe.logger().info(f"📊 UTM Source (normalized): {normalized_source}")
             frappe.logger().info(f"📊 UTM Medium (normalized): {normalized_medium}")
             
+            # Around line 450-460, where you prepare lead_data
+            page_url = str(data.get("page_url") or "")
+
+            # Truncate URL for website field (remove query params, limit to 140 chars)
+            website_url = page_url.split('?')[0]  # Remove query parameters
+            if len(website_url) > 140:
+                website_url = website_url[:140]  # Truncate to 140 chars
+
+
             # Prepare lead data
             lead_data = {
                 "doctype": "CRM Lead",
@@ -539,7 +548,7 @@ def submit_form(**kwargs):
                 "source": source,
                 "source_type": source_type,
                 "source_name": str(data.get("formName") or "Contact Form"),
-                "website": f"{urlparse(page_url).scheme}://{urlparse(page_url).netloc}"[:140] if page_url else None,
+                "website": "website": website_url if website_url else None,
                 "organization": org_name,
                 "ga_client_id": client_id if client_id else None,
                 "page_url": page_url if page_url else None,
@@ -547,7 +556,8 @@ def submit_form(**kwargs):
                 "utm_source": normalized_source,
                 "utm_medium": normalized_medium,
                 "utm_campaign": utm_params.get('utm_campaign'),
-                "utm_campaign_id": utm_params.get('utm_campaign_id')
+                "utm_campaign_id": utm_params.get('utm_campaign_id'),
+                "full_tracking_details": json.dumps(complete_tracking_data, indent=2)
             }
             
             frappe.logger().info("📄 Lead Data to Insert:")
