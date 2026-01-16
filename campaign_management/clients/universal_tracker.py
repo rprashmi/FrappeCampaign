@@ -279,7 +279,7 @@ def identify_organization(data):
             for org_key, config in ORGANIZATION_CONFIG.items():
                 for configured_domain in config["domains"]:
                     if domain == configured_domain or configured_domain in domain:
-                        frappe.logger().info(f"✅ Org matched by referrer: {org_key} ({configured_domain})")
+                        frappe.logger().info(f" Org matched by referrer: {org_key} ({configured_domain})")
                         return config
         except Exception as e:
             frappe.logger().error(f"Error parsing referrer: {str(e)}")
@@ -290,10 +290,10 @@ def identify_organization(data):
     for org_key, config in ORGANIZATION_CONFIG.items():
         for configured_domain in config["domains"]:
             if configured_domain in current_site:
-                frappe.logger().info(f"✅ Org matched by site: {org_key}")
+                frappe.logger().info(f"Org matched by site: {org_key}")
                 return config
 
-    frappe.logger().warning(f"⚠️ No organization match found. Using fallback.")
+    frappe.logger().warning(f"No organization match found. Using fallback.")
     return ORGANIZATION_CONFIG.get("walue", {
         "org_name": "Unknown Organization",
         "org_website": frappe.local.site,
@@ -306,7 +306,7 @@ def verify_organization_exists(org_name):
     """Check if organization exists in Frappe"""
     exists = frappe.db.exists("CRM Organization", org_name)
     if not exists:
-        frappe.logger().error(f"❌ Organization '{org_name}' does NOT exist!")
+        frappe.logger().error(f" Organization '{org_name}' does NOT exist!")
     return exists
 
 
@@ -319,33 +319,25 @@ def submit_form(**kwargs):
     frappe.flags.ignore_csrf = True
     
     try:
-        # Get all data sources
         data = get_request_data()
         data.update(kwargs)
-        
-        # 🔥 CRITICAL DEBUG: Log EVERYTHING received
+
         frappe.logger().info("=" * 80)
         frappe.logger().info("📥 FORM SUBMISSION RECEIVED")
         frappe.logger().info("=" * 80)
-        frappe.logger().info(f"📦 Complete Data Received:")
         frappe.logger().info(json.dumps(data, indent=2, default=str))
         frappe.logger().info("=" * 80)
-        
-        # Identify organization
+
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
-        
-        frappe.logger().info(f"🏢 Organization: {org_name}")
-        frappe.logger().error(f"🧪 identify_organization RAW → {org_config}")
-        frappe.logger().error(f"🧪 org_name → {org_name}")
+        org_type = org_config.get("org_type")
 
-        
         if not verify_organization_exists(org_name):
-            error_msg = f"Organization '{org_name}' not found in system"
-            frappe.logger().error(f"❌ {error_msg}")
-            return {"success": False, "message": error_msg}
-        
-        # Import helper functions
+            return {
+                "success": False,
+                "message": f"Organization '{org_name}' not found"
+            }
+
         from campaign_management.clients.base import (
             extract_browser_details,
             get_geo_info_from_ip,
@@ -356,183 +348,217 @@ def submit_form(**kwargs):
             get_facebook_ad_data,
             enrich_lead_with_facebook_data
         )
-        
-        # 🔥 FIXED: Enhanced field extraction with multiple fallbacks
+
         first_name = str(
             data.get("firstName") or 
             data.get("first_name") or 
-            data.get("First Name") or 
-            ""
+            data.get("First Name") or ""
         ).strip()
-        
+
         last_name = str(
             data.get("lastName") or 
             data.get("last_name") or 
-            data.get("Last Name") or 
-            ""
+            data.get("Last Name") or ""
         ).strip()
-        
+
         email = str(
-            data.get("lead_email") or  # From your JS
-            data.get("email") or 
-            data.get("Email") or 
-            ""
+            data.get("lead_email") or 
+            data.get("email") or ""
         ).strip().lower()
 
-        country = str(
-            data.get("country") or 
-            data.get("Country") or  
-            ""
-        ).strip()
-        
         phone = str(
             data.get("mobile") or 
-            data.get("mobileNo") or      # From your JS
-            data.get("mobile_no") or     # From HTML
-            data.get("phone") or 
-            data.get("Mobile No") or 
-            ""
+            data.get("mobileNo") or 
+            data.get("mobile_no") or ""
         ).strip()
-        
-        gender = str(
-            data.get("gender") or 
-            data.get("Gender") or 
-            ""
-        ).strip()
-        
-        company = str(
-            data.get("company") or 
-            data.get("lead_company") or 
-            ""
-        ).strip()
-        
-        message = str(
-            data.get("message") or 
-            data.get("comments") or 
-            ""
-        ).strip()
-        
+
+        gender = str(data.get("gender") or "").strip()
+        company = str(data.get("company") or data.get("lead_company") or "").strip()
+        country = str(data.get("country") or "").strip()
+        message = str(data.get("message") or data.get("comments") or "").strip()
+
         client_id = str(
             data.get("ga_client_id") or 
-            data.get("client_id") or 
-            ""
+            data.get("client_id") or ""
         )
-        
-        # 🔥 Log extracted fields
-        frappe.logger().info("=" * 60)
-        frappe.logger().info("📋 EXTRACTED FIELDS:")
-        frappe.logger().info(f"  First Name: '{first_name}'")
-        frappe.logger().info(f"  Last Name: '{last_name}'")
-        frappe.logger().info(f"  Email: '{email}'")
-        frappe.logger().info(f"  Phone: '{phone}'")
-        frappe.logger().info(f"  Gender: '{gender}'")
-        frappe.logger().info(f"  Company: '{company}'")
-        frappe.logger().info(f"  Country: '{country}'")
-        frappe.logger().info(f"  Client ID: '{client_id}'")
-        frappe.logger().info("=" * 60)
-        
-        # Validation
+
         if not first_name:
-            error_msg = "First name is required"
-            frappe.logger().error(f"❌ {error_msg}")
-            return {"success": False, "message": error_msg}
-        
+            return {"success": False, "message": "First name is required"}
+
         if not email and not phone:
-            error_msg = "Email or Phone is required"
-            frappe.logger().error(f"❌ {error_msg}")
-            return {"success": False, "message": error_msg}
-        
-        # Get tracking data
-        user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
-        ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
-        page_url = str(data.get("page_url") or "")
-        referrer = str(data.get("referrer") or data.get("page_referrer") or "")
-        
-        browser_details = extract_browser_details(user_agent)
-        geo_info = get_geo_info_from_ip(ip_address)
+            return {"success": False, "message": "Email or Phone is required"}
+
         utm_params = get_utm_params_from_data(data)
-        fb_data = get_facebook_ad_data(data)
-        
-        # Determine source
+
+        normalized_source = normalize_utm_value(
+            utm_params.get("utm_source"), "source"
+        )
+        normalized_medium = normalize_utm_value(
+            utm_params.get("utm_medium"), "medium"
+        )
+
         source = determine_source(data, org_config)
         source_type = "Form"
-        
-        frappe.logger().info(f"📍 Source: {source}")
-        frappe.logger().info(f"📍 Source Type: {source_type}")
-        
-        # Check for existing lead
+
+        fb_data = get_facebook_ad_data(data)
+
+        user_agent = str(
+            data.get("user_agent") or
+            frappe.get_request_header("User-Agent", "")
+        )
+
+        ip_address = str(
+            data.get("ip_address") or
+            frappe.local.request_ip or ""
+        )
+
+        page_url = str(data.get("page_url") or "")
+        referrer = str(data.get("referrer") or data.get("page_referrer") or "")
+
+        browser_details = extract_browser_details(user_agent)
+        geo_info = get_geo_info_from_ip(ip_address)
+
+        geo_location = (
+            f"{geo_info.get('city')}, {geo_info.get('country')}"
+            if geo_info.get("city") else geo_info.get("country", "")
+        )
+
+        complete_tracking_data = {
+            "browser": browser_details,
+            "geo": geo_info,
+            "utm": {
+                "utm_source_raw": utm_params.get("utm_source"),
+                "utm_source_normalized": normalized_source,
+                "utm_medium_raw": utm_params.get("utm_medium"),
+                "utm_medium_normalized": normalized_medium,
+                "utm_campaign": utm_params.get("utm_campaign"),
+                "utm_campaign_id": utm_params.get("utm_campaign_id")
+            },
+            "timestamp": now(),
+            "organization_type": org_type,
+            "source": source,
+            "referrer": referrer
+        }
+
         existing_lead = find_lead_cross_device(email, client_id, org_name)
-        
+
         if existing_lead:
-            frappe.logger().info(f"✅ Found existing lead: {existing_lead['name']}")
-            
-            # Update existing lead
-            lead = frappe.get_doc("CRM Lead", existing_lead['name'])
-            
+            lead = frappe.get_doc("CRM Lead", existing_lead["name"])
+
             if phone and not lead.mobile_no:
                 lead.mobile_no = phone
-                frappe.logger().info(f"📞 Updated phone: {phone}")
-            
-            if company and not lead.get('lead_company'):
+
+            if company and not lead.lead_company:
                 lead.lead_company = company
-                frappe.logger().info(f"🏢 Updated company: {company}")
 
-            if country and not lead.get('country'):
+            if country and not lead.country:
                 lead.country = country
-                frappe.logger().info(f" Updated country: {country}")
 
-            if gender and not lead.get('gender'):
+            if gender and not lead.gender:
                 lead.gender = gender
-                frappe.logger().info(f"👤 Updated gender: {gender}")
-            
+
             if message:
                 lead.add_comment("Info", f"Form submission: {message}")
-                frappe.logger().info(f"💬 Added comment")
-            
+
+            if normalized_source and not lead.utm_source:
+                lead.utm_source = normalized_source
+
+            if normalized_medium and not lead.utm_medium:
+                lead.utm_medium = normalized_medium
+
+            if utm_params.get("utm_campaign") and not lead.utm_campaign:
+                lead.utm_campaign = utm_params.get("utm_campaign")
+
+            if utm_params.get("utm_campaign_id") and not lead.utm_campaign_id:
+                lead.utm_campaign_id = utm_params.get("utm_campaign_id")
+
             lead.save(ignore_permissions=True)
-            frappe.logger().info(f"💾 Lead updated: {lead.name}")
-            
-            # Add form submission activity
+
             add_activity_to_lead(lead.name, {
                 "activity_type": "Form Submission",
                 "page_url": page_url,
                 "timestamp": now(),
                 "browser": f"{browser_details['browser']} on {browser_details['os']}",
-                "device": browser_details['device'],
-                "geo_location": f"{geo_info.get('city')}, {geo_info.get('country')}" if geo_info.get('city') else geo_info.get('country', ''),
+                "device": browser_details["device"],
+                "geo_location": geo_location,
                 "referrer": referrer,
-                "client_id": client_id
+                "client_id": client_id,
+                "utm_source": normalized_source,
+                "utm_medium": normalized_medium,
+                "utm_campaign": utm_params.get("utm_campaign")
             })
-            
+
             frappe.db.commit()
-            frappe.logger().info("✅ DATABASE COMMITTED")
-            
+
             return {
                 "success": True,
-                "message": "Information updated successfully",
                 "lead": lead.name,
                 "organization": org_name
             }
-        
-        else:
-            # 🔥 Create NEW lead
-            frappe.logger().info("🆕 Creating NEW lead...")
-            
-            # Normalize UTM values
-            normalized_source = normalize_utm_value(utm_params.get('utm_source'), "source")
-            normalized_medium = normalize_utm_value(utm_params.get('utm_medium'), "medium")
-            
-            frappe.logger().info(f"📊 UTM Source (normalized): {normalized_source}")
-            frappe.logger().info(f"📊 UTM Medium (normalized): {normalized_medium}")
-            
-            # Around line 450-460, where you prepare lead_data
-            page_url = str(data.get("page_url") or "")
 
-            # Truncate URL for website field (remove query params, limit to 140 chars)
-            website_url = page_url.split('?')[0]  # Remove query parameters
-            if len(website_url) > 140:
-                website_url = website_url[:140]  # Truncate to 140 chars
+        website_url = page_url.split("?")[0]
+        if len(website_url) > 140:
+            website_url = website_url[:140]
 
+        lead_data = {
+            "doctype": "CRM Lead",
+            "first_name": first_name,
+            "last_name": last_name or None,
+            "email": email or None,
+            "mobile_no": phone or None,
+            "gender": gender or None,
+            "lead_company": company or None,
+            "country": country or None,
+            "status": "New",
+            "source": source,
+            "source_type": source_type,
+            "source_name": str(data.get("formName") or "Contact Form"),
+            "website": website_url,
+            "organization": org_name,
+            "ga_client_id": client_id or None,
+            "page_url": page_url,
+            "referrer": referrer,
+            "utm_source": normalized_source,
+            "utm_medium": normalized_medium,
+            "utm_campaign": utm_params.get("utm_campaign"),
+            "utm_campaign_id": utm_params.get("utm_campaign_id"),
+            "full_tracking_details": json.dumps(
+                complete_tracking_data, indent=2, default=str
+            )
+        }
+
+        lead = frappe.get_doc(lead_data)
+        lead = enrich_lead_with_facebook_data(lead, data)
+        lead.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        if client_id:
+            link_web_visitor_to_lead(client_id, lead.name)
+            link_historical_activities_to_lead(client_id, lead.name)
+
+        add_activity_to_lead(lead.name, {
+            "activity_type": "First Form Submission",
+            "page_url": page_url,
+            "timestamp": now(),
+            "browser": f"{browser_details['browser']} on {browser_details['os']}",
+            "device": browser_details["device"],
+            "geo_location": geo_location,
+            "referrer": referrer,
+            "client_id": client_id,
+            "utm_source": normalized_source,
+            "utm_medium": normalized_medium,
+            "utm_campaign": utm_params.get("utm_campaign")
+        })
+
+        frappe.db.commit()
+
+        return {
+            "success": True,
+            "lead": lead.name,
+            "organization": org_name,
+            "is_new_lead": True,
+            "from_facebook_ad": fb_data.get("has_facebook_click")
+        }
 
             # Prepare lead data
             lead_data = {
@@ -607,50 +633,42 @@ def submit_form(**kwargs):
             }
     
     except Exception as e:
-        error_msg = str(e)
-        traceback = frappe.get_traceback()
-        
-        frappe.logger().error("=" * 80)
-        frappe.logger().error("❌ FORM SUBMISSION ERROR")
-        frappe.logger().error("=" * 80)
-        frappe.logger().error(f"Error: {error_msg}")
-        frappe.logger().error(f"Traceback:\n{traceback}")
-        frappe.logger().error("=" * 80)
-        
-        frappe.log_error(traceback, "Form Submit Error")
-        
-        return {"success": False, "message": error_msg}
+        frappe.logger().error(frappe.get_traceback())
+        return {"success": False, "message": str(e)}
 
-@frappe.whitelist(allow_guest=True, methods=['POST'])
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def track_activity(**kwargs):
-    """
-    Universal Activity Tracker - Optimized for Facebook Ads and GTM
-    Ensures activities are tracked for existing leads or stored anonymously for new ones.
-    """
+    """Universal Activity Tracker (Old logic + Facebook Ads support)"""
+
     frappe.set_user("Guest")
     frappe.flags.ignore_csrf = True
- 
+
     try:
-        # 1. Gather all data sources
         data = get_request_data()
         data.update(kwargs)
- 
-        # 2. Identify and verify Organization
         org_config = identify_organization(data)
         org_name = org_config["org_name"]
- 
+
         if not verify_organization_exists(org_name):
             return {
                 "success": False,
                 "message": f"Organization '{org_name}' not configured."
             }
- 
+
+        frappe.logger().info(f"Activity tracking for: {org_name}")
+
         client_id = data.get("ga_client_id") or data.get("client_id")
         activity_type = str(data.get("activity_type") or data.get("event") or "")
-       
+        page_url = str(data.get("page_url") or data.get("page_location") or "")
+
         if not client_id or not activity_type:
-            return {"success": False, "message": "client_id and activity_type required"}
- 
+            return {
+                "success": False,
+                "message": "client_id and activity_type required"
+            }
+
         from campaign_management.clients.base import (
             extract_browser_details,
             get_geo_info_from_ip,
@@ -660,81 +678,117 @@ def track_activity(**kwargs):
             get_utm_params_from_data,
             track_facebook_ad_click
         )
- 
-       
+
         if activity_type == "Facebook Ad Click" or data.get("fbclid"):
-            frappe.logger().info(f"Processing Facebook Ad Click for {client_id}")
-            result = track_facebook_ad_click(client_id, data, org_name)
- 
- 
-        user_agent = str(data.get("user_agent") or frappe.get_request_header("User-Agent", ""))
-        ip_address = str(data.get("ip_address") or frappe.local.request_ip or "")
-        page_url = str(data.get("page_url") or data.get("page_location") or "")
+            frappe.logger().info(f"Processing Facebook Ad Click for client_id={client_id}")
+            track_facebook_ad_click(client_id, data, org_name)
+
+        user_agent = str(
+            data.get("user_agent") or
+            frappe.get_request_header("User-Agent", "")
+        )
+
+        ip_address = str(
+            data.get("ip_address") or
+            frappe.local.request_ip or ""
+        )
+
         referrer = str(data.get("referrer") or data.get("page_referrer") or "")
- 
+
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
         utm_params = get_utm_params_from_data(data)
- 
-        geo_location = f"{geo_info.get('city')}, {geo_info.get('country')}" if geo_info.get('city') else geo_info.get('country', '')
- 
- 
-        data['user_agent'] = user_agent
+        geo_location = ""
+        if geo_info.get("city") and geo_info.get("country"):
+            geo_location = f"{geo_info['city']}, {geo_info['country']}"
+        elif geo_info.get("country"):
+            geo_location = geo_info["country"]
+
+        data["user_agent"] = user_agent
         visitor = get_or_create_web_visitor(client_id, data)
-        frappe.db.set_value("Web Visitor", visitor.name, "last_seen", now(), update_modified=False)
- 
-       
+
+        frappe.db.set_value(
+            "Web Visitor",
+            visitor.name,
+            "last_seen",
+            now(),
+            update_modified=False
+        )
+
         lead_name = None
+
         if visitor.converted_lead:
             try:
-                lead_org = frappe.db.get_value("CRM Lead", visitor.converted_lead, "organization")
+                lead_org = frappe.db.get_value(
+                    "CRM Lead",
+                    visitor.converted_lead,
+                    "organization"
+                )
                 if lead_org == org_name:
                     lead_name = visitor.converted_lead
-            except:
-                pass
- 
-        if not lead_name:
+            except Exception as e:
+                frappe.logger().error(f"Converted lead check failed: {str(e)}")
+
+        if not lead_name and client_id:
             lead_name = frappe.db.get_value(
                 "CRM Lead",
-                {"ga_client_id": client_id, "organization": org_name},
+                {
+                    "ga_client_id": client_id,
+                    "organization": org_name
+                },
                 "name"
             )
             if lead_name:
                 link_web_visitor_to_lead(client_id, lead_name)
- 
+
         percent_scrolled = data.get("percent_scrolled", "")
         if "scroll" in activity_type.lower() and percent_scrolled:
-            activity_type = f"Scroll {str(percent_scrolled).replace('scroll_', '')}%"
- 
-        product_name = data.get("product_name") or data.get("feature_name") or data.get("service_name") or ""
- 
+            if isinstance(percent_scrolled, str):
+                percent_scrolled = percent_scrolled.replace("scroll_", "")
+            activity_type = f"Scroll {percent_scrolled}%"
+
+        tracked_item = (
+            data.get("product_name")
+            or data.get("feature_name")
+            or data.get("service_name")
+            or ""
+        )
+
         success = add_activity_to_lead(lead_name, {
             "activity_type": activity_type,
             "page_url": page_url,
-            "product_name": product_name,
+            "product_name": tracked_item,
             "cta_name": str(data.get("cta_name") or ""),
             "cta_location": str(data.get("cta_location") or ""),
             "timestamp": now(),
             "browser": f"{browser_details['browser']} on {browser_details['os']}",
-            "device": browser_details['device'],
+            "device": browser_details["device"],
             "geo_location": geo_location,
             "referrer": referrer,
             "client_id": client_id,
             "user_agent": user_agent,
             **utm_params
         })
- 
+
         frappe.db.commit()
- 
+
         return {
             "success": True,
             "visitor": visitor.name,
             "linked_lead": lead_name,
             "organization": org_name,
+            "activity_saved": success,
+            "device_detected": browser_details["device"],
             "utm_captured": {k: v for k, v in utm_params.items() if v}
         }
- 
+
     except Exception as e:
         frappe.logger().error(f"ACTIVITY TRACKING ERROR: {str(e)}")
+
         frappe.log_error(frappe.get_traceback(), "Track Activity Error")
         return {"success": False, "message": str(e)}
+        frappe.log_error(frappe.get_traceback(), "Activity Tracking Error")
+        return {
+            "success": False,
+            "message": str(e)
+        }
