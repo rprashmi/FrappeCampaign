@@ -634,9 +634,13 @@ def submit_form(**kwargs):
             # Enrich with Facebook data if available
             lead = enrich_lead_with_facebook_data(lead, data)
             
-            # Insert lead
-            lead.insert(ignore_permissions=True)
-            frappe.logger().info(f"✅ Lead CREATED: {lead.name}")
+            # Insert lead with bypassed permissions to allow after_insert hooks
+            frappe.flags.bypass_permission_check = True
+            try:
+                lead.insert(ignore_permissions=True)
+                frappe.logger().info(f"✅ Lead CREATED: {lead.name}")
+            finally:
+                frappe.flags.bypass_permission_check = False
             
             frappe.db.commit()
             frappe.logger().info("✅ DATABASE COMMITTED")
