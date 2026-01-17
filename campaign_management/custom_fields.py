@@ -65,7 +65,7 @@ def get_custom_fields():
 
             {"fieldname": "ad_click_id",
              "label": "Ad Click ID",
-             "fieldtype": "Long Text",
+             "fieldtype": "Data",
              "insert_after": "ad_platform",
              "in_list_view": 1,
              "description": "Unique identifier from ad platform (fbclid, gclid, msclkid, etc.)"},
@@ -88,7 +88,13 @@ def get_custom_fields():
              "read_only": 1,
              "description": "First page visited from ad click"},
 
-            # ✅ FIXED: lead_company now comes AFTER ad fields
+            {"fieldname": "ad_click_id_full",
+             "label": "Ad Click ID (Full)",
+             "fieldtype": "Long Text",
+             "insert_after": "ad_click_id",
+             "description": "Full ad click identifier (fbclid, gclid, msclkid, etc.)"},
+
+            
             {"fieldname": "lead_company",
              "label": "Lead Company",
              "fieldtype": "Data",
@@ -105,8 +111,14 @@ def get_custom_fields():
 
             {"fieldname": "page_url",
              "label": "Page URL",
-             "fieldtype": "Long Text",
+             "fieldtype": "Data",
              "insert_after": "campaign_lead_link"},
+
+            {"fieldname": "page_url_full",
+             "label": "Page URL (Full)",
+             "fieldtype": "Long Text",
+             "insert_after": "page_url",
+             "description": "Full URL with UTM and ad parameters"},
 
             {"fieldname": "campaign_column",
              "fieldtype": "Column Break",
