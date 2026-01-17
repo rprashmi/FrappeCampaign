@@ -65,7 +65,7 @@ def get_custom_fields():
 
             {"fieldname": "ad_click_id",
              "label": "Ad Click ID",
-             "fieldtype": "Data",
+             "fieldtype": "Long Text",
              "insert_after": "ad_platform",
              "in_list_view": 1,
              "description": "Unique identifier from ad platform (fbclid, gclid, msclkid, etc.)"},
@@ -105,7 +105,7 @@ def get_custom_fields():
 
             {"fieldname": "page_url",
              "label": "Page URL",
-             "fieldtype": "Data",
+             "fieldtype": "Long Text",
              "insert_after": "campaign_lead_link"},
 
             {"fieldname": "campaign_column",

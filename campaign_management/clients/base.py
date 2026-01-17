@@ -323,10 +323,11 @@ def add_activity_to_lead(lead_name, activity_data):
             if not visitor_name:
                 user_agent = activity_data.get('user_agent', '')
                 browser_details = extract_browser_details(user_agent)
+                page_url = activity_data.get("page_url", "")
                 visitor = frappe.get_doc({
                     "doctype": "Web Visitor",
                     "client_id": client_id,
-                    "website":  data.get("page_url", "").split("?")[0] if data.get("page_url") else "",
+                    "website": page_url.split("?")[0] if page_url else "",
                     "first_seen": now(),
                     "last_seen": now()
                 })

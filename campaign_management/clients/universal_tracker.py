@@ -603,7 +603,8 @@ def track_activity(**kwargs):
             link_web_visitor_to_lead,
             add_activity_to_lead,
             get_utm_params_from_data,
-            track_facebook_ad_click
+            track_facebook_ad_click,
+            link_historical_activities_to_lead
         )
 
         if activity_type == "Facebook Ad Click" or data.get("fbclid"):
@@ -643,31 +644,36 @@ def track_activity(**kwargs):
             update_modified=False
         )
 
+        
         lead_name = None
+        lead_org = None
 
         if visitor.converted_lead:
-            try:
-                lead_org = frappe.db.get_value(
-                    "CRM Lead",
-                    visitor.converted_lead,
-                    "organization"
-                )
-                if lead_org == org_name:
-                    lead_name = visitor.converted_lead
-            except Exception as e:
-                frappe.logger().error(f"Converted lead check failed: {str(e)}")
+            lead_name = visitor.converted_lead
 
         if not lead_name and client_id:
             lead_name = frappe.db.get_value(
-                {
-                    "doctype": "CRM Lead",
-                    "ga_client_id": client_id,
-                    "organization": org_name
-                },
+                "CRM Lead",
+                {"ga_client_id": client_id},
                 "name"
             )
-            if lead_name:
+
+        if lead_name:
+            lead_org = frappe.db.get_value(
+                "CRM Lead",
+                lead_name,
+                "organization"
+            )
+
+            if lead_org != org_name:
+                frappe.logger().warning(
+                    f"Lead {lead_name} belongs to {lead_org}, "
+                    f"but activity is for {org_name}. Skipping lead link."
+                )
+                lead_name = None
+            else:
                 link_web_visitor_to_lead(client_id, lead_name)
+                link_historical_activities_to_lead(client_id, lead_name)
 
         percent_scrolled = data.get("percent_scrolled", "")
         if "scroll" in activity_type.lower() and percent_scrolled:
@@ -682,12 +688,22 @@ def track_activity(**kwargs):
             or ""
         )
 
+        cta_name = (
+            data.get("cta_name")
+            or data.get("link_name")
+            or data.get("nav_item")
+            or data.get("formName")
+            or ""
+        )
+    
+        cta_location = data.get("cta_location") or activity_type
+
         success = add_activity_to_lead(lead_name, {
             "activity_type": activity_type,
             "page_url": page_url,
             "product_name": tracked_item,
-            "cta_name": str(data.get("cta_name") or ""),
-            "cta_location": str(data.get("cta_location") or ""),
+            "cta_name": cta_name,
+            "cta_location": cta_location,
             "timestamp": now(),
             "browser": f"{browser_details['browser']} on {browser_details['os']}",
             "device": browser_details["device"],
