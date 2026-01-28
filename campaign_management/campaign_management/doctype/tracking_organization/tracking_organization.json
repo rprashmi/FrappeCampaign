@@ -1,0 +1,104 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-28 13:48:18.523103",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_eqgl",
+  "organization_name",
+  "tracking_key",
+  "is_active",
+  "org_type",
+  "domains",
+  "keywords",
+  "crm_organization"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_eqgl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "organization_name",
+   "fieldtype": "Data",
+   "label": "Organization Name"
+  },
+  {
+   "description": "Unique identifier used by tracking scripts and backend logic to identify this organization.\nExample: your company name (xyz,abc etc)\nMust be lowercase and unique",
+   "fieldname": "tracking_key",
+   "fieldtype": "Data",
+   "label": "Tracking Key"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "description": "saas, e-commerce, education etc",
+   "fieldname": "org_type",
+   "fieldtype": "Data",
+   "label": "Org Type"
+  },
+  {
+   "description": "List of domains used to identify this organization.\nThe system matches website URL, referrer, and site domain against this list.\nFormat (JSON array):[\"example.com\", \"www.example.com\"]\n",
+   "fieldname": "domains",
+   "fieldtype": "JSON",
+   "label": "Domains"
+  },
+  {
+   "description": "Optional keywords used as a fallback to identify the organization from URLs or referrers.\nFormat (JSON array):[\"brandname\", \"product\" etc]\n",
+   "fieldname": "keywords",
+   "fieldtype": "JSON",
+   "label": "Keywords"
+  },
+  {
+   "description": "Link to existing CRM Organization - CREATE THIS FIRST if it doesn't exist!",
+   "fieldname": "crm_organization",
+   "fieldtype": "Link",
+   "label": "CRM Organization",
+   "options": "CRM Organization"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-01-28 16:35:56.963363",
+ "modified_by": "Administrator",
+ "module": "Campaign Management",
+ "name": "Tracking Organization",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

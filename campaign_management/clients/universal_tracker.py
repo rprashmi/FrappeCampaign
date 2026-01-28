@@ -17,30 +17,94 @@ from campaign_management.clients.base import (
 )
 
 
-# Organization Configuration Database
-ORGANIZATION_CONFIG = {
-    "quickshop": {
-        "org_name": "QuickShop",
-        "org_website": "quickshop-4f6f5.web.app",
-        "type": "ecommerce",
-        "domains": ["quickshop-4f6f5.web.app", "quickshop.com"],
-        "keywords": ["quickshop"]
-    },
-    "walue": {
-        "org_name": "Walue",
-        "org_website": "walue.com",
-        "type": "saas",
-        "domains": ["walue.com", "waluetracking.m.frappe.cloud", "waluetracking.web.app"],
-        "keywords": ["walue"]
-    },
-    "EE": {  
-        "org_name": "EE",
-        "org_website": "ee-dev.m.frappe.cloud",
-        "type": "education",  
-        "domains": ["ee-dev.m.frappe.cloud"],
-        "keywords": ["EE", "orbis", "education"]
-    }
-}
+def get_all_tracking_organizations():
+    """
+    Fetch all active tracking organizations from database.
+    Returns dict with tracking_key as keys.
+    """
+    try:
+        orgs = frappe.get_all(
+            "Tracking Organization",
+            filters={"is_active": 1},
+            fields=[
+                "name", 
+                "organization_name", 
+                "tracking_key", 
+                "org_type", 
+                "domains", 
+                "keywords", 
+                "crm_organization"
+            ]
+        )
+        
+        org_map = {}
+        for org in orgs:
+            try:
+                # Parse JSON fields
+                domains = json.loads(org.get("domains") or "[]")
+                keywords = json.loads(org.get("keywords") or "[]")
+                
+                # Use CRM Organization if linked, otherwise use organization_name
+                org_name = org.crm_organization if org.crm_organization else org.organization_name
+                
+                org_map[org.tracking_key.lower()] = {
+                    "org_name": org_name,
+                    "org_website": domains[0] if domains else "",
+                    "type": org.org_type or "other",
+                    "domains": [d.lower().strip() for d in domains if d],
+                    "keywords": [k.lower().strip() for k in keywords if k],
+                    "tracking_org": org.name  # Reference to Tracking Org doctype
+                }
+                
+                frappe.logger().debug(f"Loaded tracking org: {org.tracking_key} -> {org_name}")
+                
+            except json.JSONDecodeError as e:
+                frappe.logger().error(f"Invalid JSON in Tracking Org {org.name}: {str(e)}")
+                continue
+            except Exception as e:
+                frappe.logger().error(f"Error processing Tracking Org {org.name}: {str(e)}")
+                continue
+        
+        frappe.logger().info(f"Loaded {len(org_map)} active tracking organizations")
+        return org_map
+    
+    except Exception as e:
+        frappe.logger().error(f"Error fetching tracking organizations: {str(e)}")
+        frappe.logger().error(frappe.get_traceback())
+        return {}
+
+
+def get_organization_config_cached():
+    """
+    Get organization config with caching.
+    Cache expires every 5 minutes to pick up new orgs automatically.
+    """
+    cache_key = "tracking_organizations_config"
+    cached_config = frappe.cache().get_value(cache_key)
+    
+    if cached_config:
+        frappe.logger().debug("Using cached organization config")
+        return cached_config
+    
+    # Fetch from DB
+    frappe.logger().info("Fetching organization config from database...")
+    config = get_all_tracking_organizations()
+    
+    # Cache for 5 minutes (300 seconds)
+    if config:
+        frappe.cache().set_value(cache_key, config, expires_in_sec=300)
+        frappe.logger().info(f"Cached {len(config)} organizations for 5 minutes")
+    
+    return config
+
+
+def clear_organization_cache():
+    """
+    Clear the organization config cache.
+    Call this when Tracking Organization docs are created/updated.
+    """
+    frappe.cache().delete_value("tracking_organizations_config")
+    frappe.logger().info("Organization config cache cleared")
 
 
 def normalize_utm_value(raw_value, field_type="source"):
@@ -100,23 +164,23 @@ def determine_source(data, org_config):
     frappe.logger().info("DETERMINING SOURCE")
     frappe.logger().info("=" * 60)
 
-    # ✅ 1. Check for Ad Click IDs 
+    #  1. Check for Ad Click IDs 
     ad_data = get_ad_click_data(data)
     if ad_data['ad_platform']:
         platform = ad_data['ad_platform']
-        frappe.logger().info(f"🎯 Ad Click Detected: {platform}")
+        frappe.logger().info(f" Ad Click Detected: {platform}")
         
         if platform == "Facebook/Instagram":
-            frappe.logger().info("✅ Source: Facebook (from ad click ID)")
+            frappe.logger().info(" Source: Facebook (from ad click ID)")
             return "Facebook"
         elif platform == "Google Ads":
-            frappe.logger().info("✅ Source: Campaign (from Google ad click ID)")
+            frappe.logger().info("Source: Campaign (from Google ad click ID)")
             return "Campaign"
         elif platform == "LinkedIn Ads":
-            frappe.logger().info("✅ Source: Advertisement (from LinkedIn ad click ID)")
+            frappe.logger().info(" Source: Advertisement (from LinkedIn ad click ID)")
             return "Advertisement"
         else:
-            frappe.logger().info("✅ Source: Campaign (from ad click ID)")
+            frappe.logger().info("Source: Campaign (from ad click ID)")
             return "Campaign"
 
     # Check UTM Source
@@ -125,38 +189,38 @@ def determine_source(data, org_config):
         frappe.logger().info(f"🎯 Found UTM Source: '{utm_source}'")
         
         if any(fb_term in utm_source for fb_term in ['facebook', 'fb', 'instagram', 'ig']):
-            frappe.logger().info("✅ Source: Facebook (from UTM)")
+            frappe.logger().info(" Source: Facebook (from UTM)")
             return "Facebook"
         
         if any(google_term in utm_source for google_term in ['google', 'google_ads', 'adwords']):
-            frappe.logger().info("✅ Source: Campaign (from UTM - Google)")
+            frappe.logger().info(" Source: Campaign (from UTM - Google)")
             return "Campaign"
         
         if any(li_term in utm_source for li_term in ['linkedin', 'li']):
-            frappe.logger().info("✅ Source: Advertisement (from UTM - LinkedIn)")
+            frappe.logger().info(" Source: Advertisement (from UTM - LinkedIn)")
             return "Advertisement"
         
         if any(email_term in utm_source for email_term in ['email', 'newsletter']):
-            frappe.logger().info("✅ Source: Mass Mailing (from UTM)")
+            frappe.logger().info(" Source: Mass Mailing (from UTM)")
             return "Mass Mailing"
         
         if 'campaign' in utm_source or any(term in utm_source for term in ['promo', 'offer', 'ad', 'paid']):
-            frappe.logger().info("✅ Source: Campaign (from UTM keyword)")
+            frappe.logger().info(" Source: Campaign (from UTM keyword)")
             return "Campaign"
 
     # Check UTM Medium
     utm_medium = str(data.get("utm_medium") or "").lower().strip()
     if utm_medium:
         if utm_medium in ['cpc', 'ppc', 'paid', 'display', 'paid_social']:
-            frappe.logger().info("✅ Source: Campaign (from UTM Medium)")
+            frappe.logger().info(" Source: Campaign (from UTM Medium)")
             return "Campaign"
         if utm_medium in ['social']:
             if utm_source and 'facebook' in utm_source:
                 return "Facebook"
-            frappe.logger().info("✅ Source: Advertisement (from UTM Medium)")
+            frappe.logger().info(" Source: Advertisement (from UTM Medium)")
             return "Advertisement"
         if utm_medium == 'email':
-            frappe.logger().info("✅ Source: Mass Mailing (from UTM Medium)")
+            frappe.logger().info(" Source: Mass Mailing (from UTM Medium)")
             return "Mass Mailing"
 
     # Check Referrer
@@ -200,7 +264,7 @@ def find_lead_cross_device(email, client_id, org_name):
                 as_dict=True
             )
             if existing_lead:
-                frappe.logger().info(f"✅ Found by email: {existing_lead.name}")
+                frappe.logger().info(f" Found by email: {existing_lead.name}")
                 if client_id and existing_lead.ga_client_id != client_id:
                     frappe.db.set_value("CRM Lead", existing_lead.name, "ga_client_id", client_id, update_modified=False)
                     link_web_visitor_to_lead(client_id, existing_lead.name)
@@ -245,62 +309,109 @@ def get_request_data():
 
 def identify_organization(data):
     """
-    Enhanced organization identification - checks multiple sources
+    Dynamic Organization Detection using Tracking Organization doctype
+    
     """
-    org_identifier = str(data.get("organization") or "").lower().strip()
-    if org_identifier in ORGANIZATION_CONFIG:
-        frappe.logger().info(f"✅ Org identified by parameter: {org_identifier}")
-        return ORGANIZATION_CONFIG[org_identifier]
-
+    frappe.logger().info("=" * 60)
+    frappe.logger().info("IDENTIFYING ORGANIZATION")
+    frappe.logger().info("=" * 60)
+    
+    # Get dynamic config from database 
+    ORGANIZATION_CONFIG = get_organization_config_cached()
+    
+    if not ORGANIZATION_CONFIG:
+        frappe.logger().error(" No active tracking organizations found!")
+        frappe.logger().error("Please create at least one Tracking Organization in the system")
+        raise ValueError("No tracking organizations configured. Please contact administrator.")
+    
+    frappe.logger().info(f"Available organizations: {list(ORGANIZATION_CONFIG.keys())}")
+    
+    # 1. Check explicit tracking_key parameter 
+    tracking_key = str(data.get("tracking_key") or data.get("org_key") or "").lower().strip()
+    if tracking_key:
+        frappe.logger().info(f"🔑 Checking explicit tracking_key: '{tracking_key}'")
+        if tracking_key in ORGANIZATION_CONFIG:
+            frappe.logger().info(f" Org identified via tracking_key: {tracking_key}")
+            return ORGANIZATION_CONFIG[tracking_key]
+        else:
+            frappe.logger().warning(f" tracking_key '{tracking_key}' not found in config")
+    
+    # 2. Check page_url domain
     page_url = str(data.get("page_url") or data.get("page_location") or "").lower()
     if page_url:
+        frappe.logger().info(f" Checking page_url: {page_url}")
         try:
             parsed = urlparse(page_url)
-            domain = parsed.netloc or parsed.path.split('/')[0]
+            domain = parsed.netloc.lower()
+            frappe.logger().info(f"   Extracted domain: {domain}")
             
-            frappe.logger().info(f"🔍 Checking domain: {domain}")
-            
-            for org_key, config in ORGANIZATION_CONFIG.items():
-                for configured_domain in config["domains"]:
-                    if domain == configured_domain or configured_domain in domain:
-                        frappe.logger().info(f"✅ Org matched by domain: {org_key} ({configured_domain})")
+            for key, config in ORGANIZATION_CONFIG.items():
+                for org_domain in config["domains"]:
+                    if org_domain in domain or domain in org_domain:
+                        frappe.logger().info(f" Org identified via page_url domain: {key} (matched: {org_domain})")
                         return config
         except Exception as e:
             frappe.logger().error(f"Error parsing page_url: {str(e)}")
-
+    
+    # 3. Check referrer domain
     referrer = str(data.get("referrer") or data.get("page_referrer") or "").lower()
     if referrer and referrer not in ['direct', '', 'null', 'undefined']:
+        frappe.logger().info(f"🔗 Checking referrer: {referrer}")
         try:
             parsed = urlparse(referrer)
-            domain = parsed.netloc
+            domain = parsed.netloc.lower()
+            frappe.logger().info(f"   Extracted domain: {domain}")
             
-            frappe.logger().info(f"🔍 Checking referrer domain: {domain}")
-            
-            for org_key, config in ORGANIZATION_CONFIG.items():
-                for configured_domain in config["domains"]:
-                    if domain == configured_domain or configured_domain in domain:
-                        frappe.logger().info(f" Org matched by referrer: {org_key} ({configured_domain})")
+            for key, config in ORGANIZATION_CONFIG.items():
+                for org_domain in config["domains"]:
+                    if org_domain in domain or domain in org_domain:
+                        frappe.logger().info(f" Org identified via referrer domain: {key} (matched: {org_domain})")
                         return config
         except Exception as e:
             frappe.logger().error(f"Error parsing referrer: {str(e)}")
-
-    current_site = frappe.local.site
-    frappe.logger().info(f"🔍 Checking current site: {current_site}")
     
-    for org_key, config in ORGANIZATION_CONFIG.items():
-        for configured_domain in config["domains"]:
-            if configured_domain in current_site:
-                frappe.logger().info(f"Org matched by site: {org_key}")
-                return config
-
-    frappe.logger().warning(f"No organization match found. Using fallback.")
-    return ORGANIZATION_CONFIG.get("walue", {
-        "org_name": "Unknown Organization",
-        "org_website": frappe.local.site,
-        "type": "generic",
-        "domains": [],
-        "keywords": []
-    })
+    # 4. Check site_domain parameter
+    site_domain = str(data.get("site_domain") or "").lower()
+    if site_domain:
+        frappe.logger().info(f" Checking site_domain: {site_domain}")
+        for key, config in ORGANIZATION_CONFIG.items():
+            for org_domain in config["domains"]:
+                if org_domain in site_domain or site_domain in org_domain:
+                    frappe.logger().info(f" Org identified via site_domain: {key} (matched: {org_domain})")
+                    return config
+    
+    # 5. Fallback: keyword matching
+    search_text = f"{page_url} {referrer} {site_domain}".lower()
+    frappe.logger().info(f" Attempting keyword matching in: {search_text[:100]}...")
+    
+    for key, config in ORGANIZATION_CONFIG.items():
+        keywords = config.get("keywords", [])
+        if keywords:
+            for keyword in keywords:
+                if keyword and keyword in search_text:
+                    frappe.logger().info(f" Org identified via keyword match: {key} (keyword: {keyword})")
+                    return config
+    
+    # 6. Default to first organization if only one exists
+    if len(ORGANIZATION_CONFIG) == 1:
+        default_key = list(ORGANIZATION_CONFIG.keys())[0]
+        default_org = ORGANIZATION_CONFIG[default_key]
+        frappe.logger().info(f"Only one organization exists, defaulting to: {default_key}")
+        frappe.logger().info(f"   Organization: {default_org['org_name']}")
+        return default_org
+    
+    # Could not identify
+    frappe.logger().error(" Could not identify organization from request data!")
+    frappe.logger().error(f"   Available organizations: {list(ORGANIZATION_CONFIG.keys())}")
+    frappe.logger().error(f"   page_url: {page_url}")
+    frappe.logger().error(f"   referrer: {referrer}")
+    frappe.logger().error(f"   site_domain: {site_domain}")
+    frappe.logger().error(f"   tracking_key: {tracking_key}")
+    
+    raise ValueError(
+        f"Could not identify organization. Available: {', '.join(ORGANIZATION_CONFIG.keys())}. "
+        f"Please provide tracking_key or ensure domain matches one of the configured domains."
+    )
 
 def verify_organization_exists(org_name):
     """Check if organization exists in Frappe"""
