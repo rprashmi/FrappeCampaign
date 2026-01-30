@@ -250,49 +250,164 @@
     log('Form Start:', formName);
   }, true);
 
-  // Track form submission
-  document.addEventListener('submit', e => {
-    const form = e.target;
-    if (!form || form.tagName !== 'FORM') return;
-
-    const formData = new FormData(form);
-    const data = {
-      form_name: form.getAttribute('name') || form.getAttribute('id') || 'unknown_form',
-      form_id: form.id || '',
-      form_action: form.action || ''
-    };
-
-    // Extract form fields (exclude sensitive data like passwords)
-    for (let [key, value] of formData.entries()) {
-      const lowerKey = key.toLowerCase();
-      if (!lowerKey.includes('password') && 
-          !lowerKey.includes('pass') && 
-          !lowerKey.includes('pwd') &&
-          !lowerKey.includes('credit') &&
-          !lowerKey.includes('card')) {
-        data[key] = value;
-      }
-    }
-
-    pushToDataLayer('form_submit', data);
-    log('Form Submit:', data.form_name);
-  });
-
-  // IFRAME FORM SUPPORT (Frappe Web Forms)
+ // FIELD NAME MAPPING - Normalizes different field name conventions
+function normalizeFieldNames(data) {
+  const normalized = { ...data };
   
-  window.addEventListener('message', e => {
-    if (!e.data || !e.data.event) return;
+  // First Name variations
+  if (data.firstName || data.first_name || data.firstname) {
+    normalized.firstName = data.firstName || data.first_name || data.firstname;
+    normalized.first_name = data.firstName || data.first_name || data.firstname;
+  }
+  
+  // Last Name variations
+  if (data.lastName || data.last_name || data.lastname) {
+    normalized.lastName = data.lastName || data.last_name || data.lastname;
+    normalized.last_name = data.lastName || data.last_name || data.lastname;
+  }
+  
+  // Email variations
+  if (data.email || data.lead_email || data.email_address || data.user_email) {
+    const emailValue = data.email || data.lead_email || data.email_address || data.user_email;
+    normalized.email = emailValue;
+    normalized.lead_email = emailValue;
+  }
+  
+  // Mobile/Phone variations
+  if (data.mobile || data.mobileNo || data.mobile_no || data.phone || data.phone_number || data.phoneNumber) {
+    const mobileValue = data.mobile || data.mobileNo || data.mobile_no || data.phone || data.phone_number || data.phoneNumber;
+    normalized.mobile_no = mobileValue;
+    normalized.mobileNo = mobileValue;
+    normalized.phone = mobileValue;
+  }
+  
+  // Company variations
+  if (data.company || data.company_name || data.companyName || data.organization) {
+    const companyValue = data.company || data.company_name || data.companyName || data.organization;
+    normalized.company = companyValue;
+    normalized.company_name = companyValue;
+  }
+  
+  // Country variations
+  if (data.country || data.country_code || data.countryCode) {
+    normalized.country = data.country || data.country_code || data.countryCode;
+  }
+  
+  // Message/Comments variations
+  if (data.message || data.comments || data.description || data.notes) {
+    const messageValue = data.message || data.comments || data.description || data.notes;
+    normalized.message = messageValue;
+    normalized.comments = messageValue;
+  }
+  
+  // Job Title variations
+  if (data.jobTitle || data.job_title || data.title || data.position) {
+    const titleValue = data.jobTitle || data.job_title || data.title || data.position;
+    normalized.job_title = titleValue;
+    normalized.jobTitle = titleValue;
+  }
+  
+  // Industry variations
+  if (data.industry || data.business_type || data.businessType) {
+    const industryValue = data.industry || data.business_type || data.businessType;
+    normalized.industry = industryValue;
+    normalized.business_type = industryValue;
+  }
+  
+  // Website variations
+  if (data.website || data.website_url || data.websiteUrl || data.url) {
+    const websiteValue = data.website || data.website_url || data.websiteUrl || data.url;
+    normalized.website = websiteValue;
+    normalized.website_url = websiteValue;
+  }
+  
+  // State/Region variations
+  if (data.state || data.region || data.province) {
+    const stateValue = data.state || data.region || data.province;
+    normalized.state = stateValue;
+    normalized.region = stateValue;
+  }
+  
+  // City variations
+  if (data.city || data.town) {
+    normalized.city = data.city || data.town;
+  }
+  
+  // Zip/Postal Code variations
+  if (data.zip || data.zipcode || data.zip_code || data.postal_code || data.postalCode) {
+    const zipValue = data.zip || data.zipcode || data.zip_code || data.postal_code || data.postalCode;
+    normalized.zip_code = zipValue;
+    normalized.postal_code = zipValue;
+  }
+  
+  // Gender variations
+  if (data.gender || data.sex) {
+    normalized.gender = data.gender || data.sex;
+  }
+  
+  // Age/DOB variations
+  if (data.age || data.date_of_birth || data.dob || data.birthdate) {
+    normalized.age = data.age;
+    normalized.date_of_birth = data.date_of_birth || data.dob || data.birthdate;
+  }
+  
+  return normalized;
+}
 
-    if (e.data.event === 'form_submit') {
-      pushToDataLayer('form_submit', {
-        form_name: e.data.form_name || 'frappe_form',
-        form_type: 'iframe',
-        source: 'frappe_webform',
-        ...e.data
-      });
-      log('Iframe Form Submit:', e.data.form_name);
+// HTML FORM TRACKING
+document.addEventListener('submit', e => {
+  const form = e.target;
+  if (!form || form.tagName !== 'FORM') return;
+
+  const formData = new FormData(form);
+  const data = {
+    form_name: form.getAttribute('name') || form.getAttribute('id') || 'unknown_form',
+    form_id: form.id || '',
+    form_action: form.action || '',
+    form_type: 'html'
+  };
+
+  // Extract form fields (exclude sensitive data like passwords)
+  for (let [key, value] of formData.entries()) {
+    const lowerKey = key.toLowerCase();
+    if (!lowerKey.includes('password') && 
+        !lowerKey.includes('pass') && 
+        !lowerKey.includes('pwd') &&
+        !lowerKey.includes('credit') &&
+        !lowerKey.includes('card') &&
+        !lowerKey.includes('cvv') &&
+        !lowerKey.includes('ssn') &&
+        !lowerKey.includes('social')) {
+      data[key] = value;
     }
-  });
+  }
+
+  // Normalize field names to support multiple conventions
+  const normalizedData = normalizeFieldNames(data);
+
+  pushToDataLayer('form_submit', normalizedData);
+  log('Form Submit (HTML):', normalizedData.form_name, normalizedData);
+});
+
+// IFRAME FORM SUPPORT (Frappe Web Forms)
+window.addEventListener('message', e => {
+  if (!e.data || !e.data.event) return;
+
+  if (e.data.event === 'form_submit') {
+    const data = {
+      form_name: e.data.form_name || 'frappe_form',
+      form_type: 'iframe',
+      source: 'frappe_webform',
+      ...e.data
+    };
+    
+    // Normalize field names for iframe forms too
+    const normalizedData = normalizeFieldNames(data);
+    
+    pushToDataLayer('form_submit', normalizedData);
+    log('Form Submit (Iframe):', normalizedData.form_name, normalizedData);
+  }
+});
 
   // EXIT INTENT TRACKING
 
