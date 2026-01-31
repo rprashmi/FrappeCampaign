@@ -7,19 +7,17 @@
 (function () {
   'use strict';
 
-  // Prevent double loading
+ 
   if (window.__CLIENT_TRACKER__) return;
   window.__CLIENT_TRACKER__ = true;
 
   
-  // CONFIGURATION
-  
-  const script = document.currentScript;
+  const script = document.currentScript; 
   const CONFIG = {
-    org: script?.dataset.org || 'unknown',
-    env: script?.dataset.env || 'prod',
-    debug: script?.dataset.debug === 'true'
-  };
+  tracking_key: script?.dataset.trackingKey || 'unknown',
+  env: script?.dataset.env || 'prod',
+  debug: script?.dataset.debug === 'true'
+};
 
   function log(...args) {
     if (CONFIG.debug) {
@@ -56,8 +54,6 @@
   const GA_CLIENT_ID = getGAClientId();
   log('GA Client ID:', GA_CLIENT_ID);
 
-  // TRACKING PARAMS MANAGEMENT (UTMs & Ad Clicks)
-  
   function readParams() {
     const p = new URLSearchParams(location.search);
     return {
@@ -126,12 +122,11 @@
   log('Ad Info:', adInfo);
 
   
-  // PUSH TO DATALAYER (GTM will handle the rest)
   function pushToDataLayer(eventName, eventData = {}) {
     const payload = {
       event: eventName,
       activity_type: eventName,
-      organization: CONFIG.org,
+      tracking_key: CONFIG.tracking_key,
       environment: CONFIG.env,
       ga_client_id: GA_CLIENT_ID,
       client_id: GA_CLIENT_ID,
@@ -254,26 +249,22 @@
 function normalizeFieldNames(data) {
   const normalized = { ...data };
   
-  // First Name variations
   if (data.firstName || data.first_name || data.firstname) {
     normalized.firstName = data.firstName || data.first_name || data.firstname;
     normalized.first_name = data.firstName || data.first_name || data.firstname;
   }
   
-  // Last Name variations
   if (data.lastName || data.last_name || data.lastname) {
     normalized.lastName = data.lastName || data.last_name || data.lastname;
     normalized.last_name = data.lastName || data.last_name || data.lastname;
   }
   
-  // Email variations
   if (data.email || data.lead_email || data.email_address || data.user_email) {
     const emailValue = data.email || data.lead_email || data.email_address || data.user_email;
     normalized.email = emailValue;
     normalized.lead_email = emailValue;
   }
   
-  // Mobile/Phone variations
   if (data.mobile || data.mobileNo || data.mobile_no || data.phone || data.phone_number || data.phoneNumber) {
     const mobileValue = data.mobile || data.mobileNo || data.mobile_no || data.phone || data.phone_number || data.phoneNumber;
     normalized.mobile_no = mobileValue;
@@ -281,71 +272,61 @@ function normalizeFieldNames(data) {
     normalized.phone = mobileValue;
   }
   
-  // Company variations
   if (data.company || data.company_name || data.companyName || data.organization) {
     const companyValue = data.company || data.company_name || data.companyName || data.organization;
     normalized.company = companyValue;
     normalized.company_name = companyValue;
   }
   
-  // Country variations
   if (data.country || data.country_code || data.countryCode) {
     normalized.country = data.country || data.country_code || data.countryCode;
   }
   
-  // Message/Comments variations
+ 
   if (data.message || data.comments || data.description || data.notes) {
     const messageValue = data.message || data.comments || data.description || data.notes;
     normalized.message = messageValue;
     normalized.comments = messageValue;
   }
   
-  // Job Title variations
   if (data.jobTitle || data.job_title || data.title || data.position) {
     const titleValue = data.jobTitle || data.job_title || data.title || data.position;
     normalized.job_title = titleValue;
     normalized.jobTitle = titleValue;
   }
   
-  // Industry variations
   if (data.industry || data.business_type || data.businessType) {
     const industryValue = data.industry || data.business_type || data.businessType;
     normalized.industry = industryValue;
     normalized.business_type = industryValue;
   }
   
-  // Website variations
   if (data.website || data.website_url || data.websiteUrl || data.url) {
     const websiteValue = data.website || data.website_url || data.websiteUrl || data.url;
     normalized.website = websiteValue;
     normalized.website_url = websiteValue;
   }
   
-  // State/Region variations
   if (data.state || data.region || data.province) {
     const stateValue = data.state || data.region || data.province;
     normalized.state = stateValue;
     normalized.region = stateValue;
   }
   
-  // City variations
   if (data.city || data.town) {
     normalized.city = data.city || data.town;
   }
   
-  // Zip/Postal Code variations
   if (data.zip || data.zipcode || data.zip_code || data.postal_code || data.postalCode) {
     const zipValue = data.zip || data.zipcode || data.zip_code || data.postal_code || data.postalCode;
     normalized.zip_code = zipValue;
     normalized.postal_code = zipValue;
   }
   
-  // Gender variations
   if (data.gender || data.sex) {
     normalized.gender = data.gender || data.sex;
   }
   
-  // Age/DOB variations
   if (data.age || data.date_of_birth || data.dob || data.birthdate) {
     normalized.age = data.age;
     normalized.date_of_birth = data.date_of_birth || data.dob || data.birthdate;
@@ -389,7 +370,7 @@ document.addEventListener('submit', e => {
   log('Form Submit (HTML):', normalizedData.form_name, normalizedData);
 });
 
-// IFRAME FORM SUPPORT (Frappe Web Forms)
+// Frappe Web Forms iframe support
 window.addEventListener('message', e => {
   if (!e.data || !e.data.event) return;
 
