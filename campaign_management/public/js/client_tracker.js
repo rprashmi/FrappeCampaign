@@ -12,11 +12,11 @@
   window.__CLIENT_TRACKER__ = true;
 
   
-  const script = document.currentScript; 
+  const script = document.currentScript || document.querySelector('script[src*="client_tracker.js"]');
   const CONFIG = {
-  tracking_key: script?.dataset.trackingKey || 'unknown',
-  env: script?.dataset.env || 'prod',
-  debug: script?.dataset.debug === 'true'
+  tracking_key: script?.dataset?.trackingKey || script?.getAttribute('data-tracking-key') || 'unknown',
+  env: script?.dataset?.env || script?.getAttribute('data-env') || 'prod',
+  debug: (script?.dataset?.debug || script?.getAttribute('data-debug')) === 'true'
 };
 
   function log(...args) {
