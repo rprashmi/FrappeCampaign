@@ -12,12 +12,23 @@
   window.__CLIENT_TRACKER__ = true;
 
   
-  const script = document.currentScript || document.querySelector('script[src*="client_tracker.js"]');
-  const CONFIG = {
-  tracking_key: script?.dataset?.trackingKey || script?.getAttribute('data-tracking-key') || 'unknown',
-  env: script?.dataset?.env || script?.getAttribute('data-env') || 'prod',
-  debug: (script?.dataset?.debug || script?.getAttribute('data-debug')) === 'true'
+  // Find the script tag that loaded this file
+const script = document.currentScript || document.querySelector('script[src*="client_tracker.js"]');
+
+// Debug log to see what we're getting
+if (script) {
+  console.log('Script element found:', script);
+  console.log('data-tracking-key attribute:', script.getAttribute('data-tracking-key'));
+  console.log('dataset.trackingKey:', script.dataset.trackingKey);
+}
+
+const CONFIG = {
+  tracking_key: (script && (script.dataset.trackingKey || script.getAttribute('data-tracking-key'))) || 'unknown',
+  env: (script && (script.dataset.env || script.getAttribute('data-env'))) || 'prod',
+  debug: (script && (script.dataset.debug || script.getAttribute('data-debug'))) === 'true'
 };
+
+console.log('CONFIG loaded:', CONFIG);
 
   function log(...args) {
     if (CONFIG.debug) {
