@@ -413,12 +413,80 @@ def identify_organization(data):
         f"Please provide tracking_key or ensure domain matches one of the configured domains."
     )
 
-def verify_organization_exists(org_name):
-    """Check if organization exists in Frappe"""
-    exists = frappe.db.exists("CRM Organization", org_name)
-    if not exists:
-        frappe.logger().error(f" Organization '{org_name}' does NOT exist!")
-    return exists
+def verify_organization_exists(org_name, org_config=None):
+    """
+    FIXED: Verify if organization exists in CRM.
+    Handles both direct CRM Organization names and Tracking Organization links.
+    
+    Args:
+        org_name: Name to check (from identify_organization)
+        org_config: Optional org_config dict with crm_organization field
+    
+    Returns:
+        bool: True if organization exists in CRM, False otherwise
+    """
+    try:
+        frappe.logger().info(f"🔍 Verifying organization: '{org_name}'")
+        
+        # Method 1: If org_config has crm_organization, use that
+        if org_config and org_config.get("crm_organization"):
+            crm_org_name = org_config["crm_organization"]
+            frappe.logger().info(f"🔗 Using CRM Organization from config: '{crm_org_name}'")
+            
+            if frappe.db.exists("CRM Organization", crm_org_name):
+                frappe.logger().info(f"✅ CRM Organization '{crm_org_name}' exists")
+                return True
+            else:
+                frappe.logger().error(f"❌ CRM Organization '{crm_org_name}' not found in database")
+        
+        # Method 2: Try direct lookup by org_name
+        if frappe.db.exists("CRM Organization", org_name):
+            frappe.logger().info(f"✅ Found CRM Organization directly: '{org_name}'")
+            return True
+        
+        # Method 3: Query Tracking Organization for crm_organization link
+        tracking_org_data = frappe.db.get_value(
+            "Tracking Organization",
+            {"organization_name": org_name, "is_active": 1},
+            ["crm_organization", "tracking_key"],
+            as_dict=True
+        )
+        
+        if tracking_org_data and tracking_org_data.get("crm_organization"):
+            crm_org = tracking_org_data["crm_organization"]
+            frappe.logger().info(f" Found via Tracking Org (key: {tracking_org_data.get('tracking_key')}). CRM Org: '{crm_org}'")
+            
+            if frappe.db.exists("CRM Organization", crm_org):
+                frappe.logger().info(f" CRM Organization '{crm_org}' exists")
+                return True
+            else:
+                frappe.logger().error(f" Linked CRM Organization '{crm_org}' not found")
+        
+        # Organization not found - provide detailed debug info
+        frappe.logger().error(f" Organization '{org_name}' not found in CRM")
+        
+        # Debug: List available organizations
+        all_crm_orgs = frappe.get_all("CRM Organization", pluck="name", limit=20)
+        all_tracking_orgs = frappe.get_all(
+            "Tracking Organization",
+            filters={"is_active": 1},
+            fields=["organization_name", "crm_organization", "tracking_key"],
+            limit=20
+        )
+        
+        frappe.logger().error(f"📋 Available CRM Organizations (first 20): {all_crm_orgs}")
+        frappe.logger().error(f"📋 Available Tracking Organizations (first 20): {json.dumps(all_tracking_orgs, indent=2)}")
+        frappe.logger().error("💡 Fix options:")
+        frappe.logger().error("   1. Create a CRM Organization with this exact name")
+        frappe.logger().error("   2. OR link an existing CRM Organization in the Tracking Organization")
+        
+        return False
+        
+    except Exception as e:
+        frappe.logger().error(f"❌ Error verifying organization: {str(e)}")
+        frappe.logger().error(frappe.get_traceback())
+        return False
+
 
 
 @frappe.whitelist(allow_guest=True, methods=['POST'])
