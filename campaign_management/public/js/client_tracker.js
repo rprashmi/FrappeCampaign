@@ -346,10 +346,27 @@ function normalizeFieldNames(data) {
   return normalized;
 }
 
-// HTML FORM TRACKING
+// HTML FORM TRACKING - FULL JS CONTROL
+let formSubmitting = false;
+
 document.addEventListener('submit', e => {
   const form = e.target;
   if (!form || form.tagName !== 'FORM') return;
+
+  e.preventDefault();
+
+  if (formSubmitting) {
+    log('Form already submitting...');
+    return;
+  }
+  formSubmitting = true;
+
+  // Disable submit button
+  const submitBtn = form.querySelector('[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+  }
 
   const formData = new FormData(form);
   const data = {
@@ -359,7 +376,7 @@ document.addEventListener('submit', e => {
     form_type: 'html'
   };
 
-  // Extract form fields (exclude sensitive data like passwords)
+  // Extract form fields
   for (let [key, value] of formData.entries()) {
     const lowerKey = key.toLowerCase();
     if (!lowerKey.includes('password') && 
@@ -374,12 +391,24 @@ document.addEventListener('submit', e => {
     }
   }
 
-  // Normalize field names to support multiple conventions
   const normalizedData = normalizeFieldNames(data);
 
+  // Push to dataLayer
   pushToDataLayer('form_submit', normalizedData);
-  log('Form Submit (HTML):', normalizedData.form_name, normalizedData);
+  log('Form Submit:', normalizedData.form_name, normalizedData);
+
+  setTimeout(() => {
+    form.innerHTML = `
+      <div style="text-align: center; padding: 2rem; background: #059669; color: white; border-radius: 8px;">
+        <h3>✓ Thank You!</h3>
+        <p>We'll be in touch soon.</p>
+      </div>
+    `;
+
+    formSubmitting = false;
+  }, 1000); 
 });
+
 
 // Frappe Web Forms iframe support
 window.addEventListener('message', e => {

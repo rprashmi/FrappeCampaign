@@ -655,7 +655,7 @@ def submit_form(**kwargs):
 
             add_activity_to_lead(lead.name, {
                 "activity_type": "Form Submission",
-                "page_url": page_url,
+                "page_url_full": page_url,
                 "timestamp": now(),
                 "browser": f"{browser_details['browser']} on {browser_details['os']}",
                 "device": browser_details["device"],
@@ -695,7 +695,7 @@ def submit_form(**kwargs):
             "website": website_url,
             "organization": org_name,
             "ga_client_id": client_id or None,
-            "page_url": page_url,
+            "page_url_full": page_url,
             "referrer": referrer,
             "utm_source": normalized_source,
             "utm_medium": normalized_medium,
@@ -717,7 +717,7 @@ def submit_form(**kwargs):
 
         add_activity_to_lead(lead.name, {
             "activity_type": "First Form Submission",
-            "page_url": page_url,
+            "page_url_full": page_url,
             "timestamp": now(),
             "browser": f"{browser_details['browser']} on {browser_details['os']}",
             "device": browser_details["device"],
@@ -879,7 +879,7 @@ def track_activity(**kwargs):
 
         success = add_activity_to_lead(lead_name, {
             "activity_type": activity_type,
-            "page_url": page_url,
+            "page_url_full": page_url,
             "product_name": tracked_item,
             "cta_name": cta_name,
             "cta_location": cta_location,
