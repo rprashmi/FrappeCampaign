@@ -289,8 +289,10 @@ function normalizeFieldNames(data) {
     normalized.company_name = companyValue;
   }
   
-  if (data.country || data.country_code || data.countryCode) {
-    normalized.country = data.country || data.country_code || data.countryCode;
+  if (data.country || data.country_code || data.countryCode || data.territory) {
+    const countryValue = data.country || data.country_code || data.countryCode || data.territory;
+    normalized.territory = countryValue;
+    normalized.country = countryValue;
   }
   
  

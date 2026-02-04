@@ -288,6 +288,42 @@ def find_lead_cross_device(email, client_id, org_name):
 
     return None
 
+def normalize_country_to_territory(country_value):
+    """
+    Convert country data to territory format.
+    CRM Lead uses 'territory' field for country/region data.
+    
+    Args:
+        country_value: Country name, code, or territory value
+        
+    Returns:
+        str: Territory value suitable for CRM Lead territory field
+    """
+    if not country_value:
+        return None
+    
+    # Common country code to name mapping (add more as needed)
+    country_map = {
+        "US": "United States",
+        "USA": "United States",
+        "UK": "United Kingdom",
+        "GB": "United Kingdom",
+        "IN": "India",
+        "IND": "India",
+        "CA": "Canada",
+        "AU": "Australia",
+        "AUS": "Australia",
+    }
+    
+    value = str(country_value).strip()
+    value_upper = value.upper()
+    
+    if value_upper in country_map:
+        return country_map[value_upper]
+    
+    return value
+
+
 
 def get_request_data():
     """Safely extract data from various request formats"""
@@ -555,7 +591,13 @@ def submit_form(**kwargs):
 
         gender = str(data.get("gender") or "").strip()
         company = str(data.get("company") or data.get("lead_company") or "").strip()
-        country = str(data.get("country") or "").strip()
+        country_raw = str(
+            data.get("country") or
+            data.get("territory") or
+            data.get("country_code") or ""
+        ).strip()
+        territory = normalize_country_to_territory(country_raw)
+        #country = str(data.get("country") or "").strip()
         message = str(data.get("message") or data.get("comments") or "").strip()
 
         client_id = str(
@@ -635,9 +677,9 @@ def submit_form(**kwargs):
                 frappe.logger().info(f"Updated company: {company}")
 
 
-            if country and not lead.get("country"):
-                lead.country = country
-                frappe.logger().info(f"Updated country: {country}")
+            if territory and not lead.get("territory"):
+                lead.territory = territory
+                frappe.logger().info(f"Updated territory: {territory}")
 
             if gender and not lead.get("gender"):
                 lead.gender = gender
@@ -695,7 +737,8 @@ def submit_form(**kwargs):
             "mobile_no": phone or None,
             "gender": gender or None,
             "lead_company": company or None,
-            "country": country or None,
+            #"country": country or None,
+            "territory": territory or None,
             "status": "New",
             "source": source,
             "source_type": source_type,
