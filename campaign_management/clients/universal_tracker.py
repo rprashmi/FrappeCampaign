@@ -373,26 +373,35 @@ def identify_organization(data):
             frappe.logger().warning(f" tracking_key '{tracking_key}' not found in config")
     
     # 2. Check page_url domain
-    page_url = str(data.get("page_url") or data.get("page_location") or "").lower()
+    page_url = str(data.get("page_url") or data.get("page_location") or "")
     if page_url:
-        frappe.logger().info(f" Checking page_url: {page_url}")
+        # Log truncated version for readability
+        display_url = page_url[:100] + "..." if len(page_url) > 100 else page_url
+        frappe.logger().info(f"Checking page_url: {display_url}")
+        
         try:
             parsed = urlparse(page_url)
             domain = parsed.netloc.lower()
-            frappe.logger().info(f"   Extracted domain: {domain}")
             
             for key, config in ORGANIZATION_CONFIG.items():
                 for org_domain in config["domains"]:
                     if org_domain in domain or domain in org_domain:
-                        frappe.logger().info(f" Org identified via page_url domain: {key} (matched: {org_domain})")
+                        frappe.logger().info(f"Org identified via domain: {key}")
                         return config
         except Exception as e:
             frappe.logger().error(f"Error parsing page_url: {str(e)}")
-    
+            # Fallback: simple string matching
+            page_url_lower = page_url.lower()
+            for key, config in ORGANIZATION_CONFIG.items():
+                for org_domain in config["domains"]:
+                    if org_domain in page_url_lower:
+                        frappe.logger().info(f"Org identified via fallback: {key}")
+                        return config
+
     # 3. Check referrer domain
     referrer = str(data.get("referrer") or data.get("page_referrer") or "").lower()
     if referrer and referrer not in ['direct', '', 'null', 'undefined']:
-        frappe.logger().info(f"🔗 Checking referrer: {referrer}")
+        frappe.logger().info(f" Checking referrer: {referrer}")
         try:
             parsed = urlparse(referrer)
             domain = parsed.netloc.lower()
@@ -537,6 +546,10 @@ def submit_form(**kwargs):
         data = get_request_data()
         data.update(kwargs)
 
+        log_data = {**data}
+        if log_data.get('page_url') and len(str(log_data['page_url'])) > 100:
+            log_data['page_url'] = str(log_data['page_url'])[:100] + '...'
+        
         frappe.logger().info("=" * 80)
         frappe.logger().info("📥 FORM SUBMISSION RECEIVED")
         frappe.logger().info("=" * 80)
@@ -636,6 +649,11 @@ def submit_form(**kwargs):
         )
 
         page_url = str(data.get("page_url") or "")
+        # raw_page_url = str(data.get("page_url") or "")
+        # parsed_url = urlparse(raw_page_url)
+
+        #page_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        #page_url_full = raw_page_url
         referrer = str(data.get("referrer") or data.get("page_referrer") or "")
 
         browser_details = extract_browser_details(user_agent)
@@ -645,6 +663,25 @@ def submit_form(**kwargs):
             f"{geo_info.get('city')}, {geo_info.get('country')}"
             if geo_info.get("city") else geo_info.get("country", "")
         )
+
+        try:
+            parsed = urlparse(page_url)
+            # Format: scheme://domain/path (no query params)
+            website_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+            website_url = website_url.rstrip('/')
+            
+            # Ensure it fits in Link field (140 chars)
+            if len(website_url) > 140:
+                # Use just domain if path makes it too long
+                website_url = f"{parsed.scheme}://{parsed.netloc}"
+                if len(website_url) > 140:
+                    website_url = website_url[:140]
+            
+            frappe.logger().info(f"📍 Website URL: {website_url}")
+            
+        except Exception as e:
+            frappe.logger().error(f"Error parsing page_url for website: {str(e)}")
+            website_url = page_url.split("?")[0][:140]
 
         complete_tracking_data = {
             "browser": browser_details,

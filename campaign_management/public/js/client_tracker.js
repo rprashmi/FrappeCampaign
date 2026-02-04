@@ -10,6 +10,7 @@
  
   if (window.__CLIENT_TRACKER__) return;
   window.__CLIENT_TRACKER__ = true;
+  let FORM_SUBMIT_SENT = false;
 
   
   // Find the script tag that loaded this file
@@ -141,7 +142,7 @@ console.log('CONFIG loaded:', CONFIG);
       environment: CONFIG.env,
       ga_client_id: GA_CLIENT_ID,
       client_id: GA_CLIENT_ID,
-      page_url: location.href,
+      page_url_full: location.href,
       page_title: document.title,
       page_referrer: document.referrer || 'direct',
       timestamp: new Date().toISOString(),
@@ -359,11 +360,12 @@ document.addEventListener('submit', e => {
   e.preventDefault();
 
   // Prevent duplicate submissions
-  if (formSubmitting) {
-    log('Form already submitting...');
+  if (formSubmitting || FORM_SUBMIT_SENT) {
+    log('Form already submitting or already sent to GTM');
     return;
   }
   formSubmitting = true;
+  FORM_SUBMIT_SENT = true;
 
   // Disable submit button
   const submitBtn = form.querySelector('[type="submit"]');
@@ -424,6 +426,11 @@ window.addEventListener('message', e => {
   if (!e.data || !e.data.event) return;
 
   if (e.data.event === 'form_submit') {
+    if (FORM_SUBMIT_SENT) {
+      log('Iframe form_submit ignored (already sent)');
+      return;
+    }
+    FORM_SUBMIT_SENT = true;
     const data = {
       form_name: e.data.form_name || 'frappe_form',
       form_type: 'iframe',
