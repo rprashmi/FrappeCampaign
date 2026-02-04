@@ -546,9 +546,11 @@ def submit_form(**kwargs):
         ).strip().lower()
 
         phone = str(
-            data.get("mobile") or
             data.get("mobileNo") or
-            data.get("mobile_no") or ""
+            data.get("phone") or 
+            data.get("mobile_no") or
+            data.get("mobile") or 
+            data.get("phoneNumber") or ""
         ).strip()
 
         gender = str(data.get("gender") or "").strip()
@@ -624,20 +626,26 @@ def submit_form(**kwargs):
         if existing_lead:
             lead = frappe.get_doc("CRM Lead", existing_lead["name"])
 
-            if phone and not lead.mobile_no:
+            if phone and not lead.get("mobile_no"):
                 lead.mobile_no = phone
+                frappe.logger().info(f"Updated phone: {phone}")
 
-            if company and not lead.lead_company:
+            if company and not lead.get("lead_company"):
                 lead.lead_company = company
+                frappe.logger().info(f"Updated company: {company}")
 
-            if country and not lead.country:
+
+            if country and not lead.get("country"):
                 lead.country = country
+                frappe.logger().info(f"Updated country: {country}")
 
-            if gender and not lead.gender:
+            if gender and not lead.get("gender"):
                 lead.gender = gender
+                frappe.logger().info(f"Updated gender: {gender}")
 
             if message:
                 lead.add_comment("Info", f"Form submission: {message}")
+                frappe.logger().info(f"Added comment")
 
             if normalized_source and not lead.utm_source:
                 lead.utm_source = normalized_source

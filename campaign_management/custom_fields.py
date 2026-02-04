@@ -101,6 +101,16 @@ def get_custom_fields():
              "insert_after": "ad_landing_page",
              "description": "Company/Business the lead represents"},
 
+            # {"fieldname": "country",
+            #  "label": "Country",
+            #  "fieldtype": "Data",  
+            #  "insert_after": "lead_company",
+            #  "in_list_view": 0,
+            #  "in_standard_filter": 1,
+            #  "description": "Lead's country"
+            # },
+
+
             {"fieldname": "campaign_lead_link",
              "label": "Campaign Lead",
              "fieldtype": "Link",
@@ -129,11 +139,11 @@ def get_custom_fields():
              "fieldtype": "Data",
              "insert_after": "campaign_column"},
 
-            {"fieldname": "tracking_info",
-             "label": "Tracking Information",
-             "fieldtype": "Code",
-             "options": "JSON",
-             "insert_after": "referrer"},
+            # {"fieldname": "tracking_info",
+            #  "label": "Tracking Information",
+            #  "fieldtype": "Code",
+            #  "options": "JSON",
+            #  "insert_after": "referrer"},
 
             {"fieldname": "full_tracking_details",
              "label": "Full Tracking Details",
