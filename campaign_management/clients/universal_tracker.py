@@ -926,7 +926,7 @@ def track_activity(**kwargs):
 
         data["user_agent"] = user_agent
         #visitor = get_or_create_web_visitor(client_id, data)
-        visitor = get_or_create_web_visitor(client_id, data, auto_create_lead=False)
+        visitor = get_or_create_web_visitor(client_id, data)
 
         frappe.db.set_value(
             "Web Visitor",
