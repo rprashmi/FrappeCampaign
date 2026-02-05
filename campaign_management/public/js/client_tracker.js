@@ -438,29 +438,29 @@ document.addEventListener('submit', e => {
 
 
 // Frappe Web Forms iframe support
-// window.addEventListener('message', e => {
-//   if (!e.data || !e.data.event) return;
+window.addEventListener('message', e => {
+  if (!e.data || !e.data.event) return;
 
-//   if (e.data.event === 'form_submit') {
-//     if (FORM_SUBMIT_SENT) {
-//       log('Iframe form_submit ignored (already sent)');
-//       return;
-//     }
-//     FORM_SUBMIT_SENT = true;
-//     const data = {
-//       form_name: e.data.form_name || 'frappe_form',
-//       form_type: 'iframe',
-//       source: 'frappe_webform',
-//       ...e.data
-//     };
+  if (e.data.event === 'form_submit') {
+    if (FORM_SUBMIT_SENT) {
+      log('Iframe form_submit ignored (already sent)');
+      return;
+    }
+    FORM_SUBMIT_SENT = true;
+    const data = {
+      form_name: e.data.form_name || 'frappe_form',
+      form_type: 'iframe',
+      source: 'frappe_webform',
+      ...e.data
+    };
     
-//     // Normalize field names for iframe forms too
-//     const normalizedData = normalizeFieldNames(data);
+    // Normalize field names for iframe forms too
+    const normalizedData = normalizeFieldNames(data);
     
-//     pushToDataLayer('form_submit', normalizedData);
-//     log('Form Submit (Iframe):', normalizedData.form_name, normalizedData);
-//   }
-// });
+    pushToDataLayer('form_submit', normalizedData);
+    log('Form Submit (Iframe):', normalizedData.form_name, normalizedData);
+  }
+});
 
 
   // EXIT INTENT TRACKING
