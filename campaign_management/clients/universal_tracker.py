@@ -371,9 +371,11 @@ def identify_organization(data):
             return ORGANIZATION_CONFIG[tracking_key]
         else:
             frappe.logger().warning(f" tracking_key '{tracking_key}' not found in config")
+            frappe.logger().error(f"Available keys: {list(ORGANIZATION_CONFIG.keys())}")
+            raise ValueError(f"Unknown tracking_key: {tracking_key}")
     
     # 2. Check page_url domain
-    page_url = str(data.get("page_url") or data.get("page_location") or "")
+    page_url = str(data.get("page_url_full") or data.get("page_url") or data.get("page_location") or "")
     if page_url:
         # Log truncated version for readability
         display_url = page_url[:100] + "..." if len(page_url) > 100 else page_url
@@ -648,13 +650,38 @@ def submit_form(**kwargs):
             frappe.local.request_ip or ""
         )
 
-        page_url = str(data.get("page_url") or "")
-        # raw_page_url = str(data.get("page_url") or "")
+        page_url = str(data.get("page_url_full") or data.get("page_url") or data.get("page_location") or "")
+        # raw_page_url = str(datadata.get("page_url") or .get("page_url") or "")
         # parsed_url = urlparse(raw_page_url)
 
         #page_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
         #page_url_full = raw_page_url
         referrer = str(data.get("referrer") or data.get("page_referrer") or "")
+
+        if email and client_id:
+            recent_lead = frappe.db.sql("""
+                SELECT name, creation, email
+                FROM `tabCRM Lead` 
+                WHERE email = %s 
+                AND ga_client_id = %s
+                AND organization = %s
+                AND creation > DATE_SUB(NOW(), INTERVAL 5 SECOND)
+                ORDER BY creation DESC 
+                LIMIT 1
+            """, (email, client_id, org_name), as_dict=1)
+            
+            if recent_lead:
+                frappe.logger().info(f"Duplicate submission prevented")
+                frappe.logger().info(f"   Lead: {recent_lead[0].name}")
+                frappe.logger().info(f"   Created: {recent_lead[0].creation}")
+                return {
+                    "success": True,
+                    "lead": recent_lead[0].name,
+                    "organization": org_name,
+                    "is_new_lead": False,
+                    "message": "Lead already exists (duplicate prevented)",
+                    "duplicate_prevented": True
+                }
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
