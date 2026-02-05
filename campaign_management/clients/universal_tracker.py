@@ -658,11 +658,11 @@ def submit_form(**kwargs):
         #page_url_full = raw_page_url
         referrer = str(data.get("referrer") or data.get("page_referrer") or "")
 
-        if email and client_id:
+        if client_id:
             recent_lead = frappe.db.sql("""
                 SELECT name, creation
                 FROM `tabCRM Lead`  
-                AND ga_client_id = %s
+                WHERE ga_client_id = %s
                 AND organization = %s
                 AND creation > DATE_SUB(NOW(), INTERVAL 5 SECOND)
                 ORDER BY creation DESC 
