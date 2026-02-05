@@ -209,6 +209,12 @@ console.log('CONFIG loaded:', CONFIG);
     if (el.hasAttribute('data-nav-item')) {
       eventName = 'nav_click';
       eventData.nav_item = el.getAttribute('data-nav-item');
+      eventData.element_text = (el.innerText || '').trim();
+      eventData.element_href = el.getAttribute('href') || '';
+      eventData.element_id = el.id || '';
+      eventData.element_class = el.className || '';
+      eventData.click_location = 'navigation';
+      eventData.dom_path = getDomPath(el);
       log('Nav Click:', eventData.nav_item);
     }
     // CTA click
@@ -230,6 +236,16 @@ console.log('CONFIG loaded:', CONFIG);
       eventData.tab_name = el.getAttribute('data-tab');
       log('Tab Click:', eventData.tab_name);
     }
+    
+    else {
+      eventName = 'generic_click';
+      eventData.element_text = (el.innerText || '').trim();
+      eventData.element_href = el.getAttribute('href') || '';
+      eventData.element_id = el.id || '';
+      eventData.element_class = el.className || '';
+      eventData.dom_path = getDomPath(el);
+    } 
+
 
     pushToDataLayer(eventName, eventData);
   });
@@ -448,7 +464,6 @@ window.addEventListener('message', e => {
 
 
   // EXIT INTENT TRACKING
-
   let exitTracked = false;
 
   document.addEventListener('mouseleave', e => {
@@ -462,7 +477,6 @@ window.addEventListener('message', e => {
   });
 
   // VISIBILITY CHANGE (Tab switching)
-
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       pushToDataLayer('page_hide');
@@ -474,7 +488,6 @@ window.addEventListener('message', e => {
   });
 
   // PUBLIC API
-
   window.ClientTracker = {
     push: pushToDataLayer,
     getClientId: () => GA_CLIENT_ID,

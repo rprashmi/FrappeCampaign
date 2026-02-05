@@ -660,15 +660,14 @@ def submit_form(**kwargs):
 
         if email and client_id:
             recent_lead = frappe.db.sql("""
-                SELECT name, creation, email
-                FROM `tabCRM Lead` 
-                WHERE email = %s 
+                SELECT name, creation
+                FROM `tabCRM Lead`  
                 AND ga_client_id = %s
                 AND organization = %s
                 AND creation > DATE_SUB(NOW(), INTERVAL 5 SECOND)
                 ORDER BY creation DESC 
                 LIMIT 1
-            """, (email, client_id, org_name), as_dict=1)
+            """, (client_id, org_name), as_dict=1)
             
             if recent_lead:
                 frappe.logger().info(f"Duplicate submission prevented")
@@ -678,8 +677,6 @@ def submit_form(**kwargs):
                     "success": True,
                     "lead": recent_lead[0].name,
                     "organization": org_name,
-                    "is_new_lead": False,
-                    "message": "Lead already exists (duplicate prevented)",
                     "duplicate_prevented": True
                 }
 
@@ -928,7 +925,8 @@ def track_activity(**kwargs):
             geo_location = geo_info["country"]
 
         data["user_agent"] = user_agent
-        visitor = get_or_create_web_visitor(client_id, data)
+        #visitor = get_or_create_web_visitor(client_id, data)
+        visitor = get_or_create_web_visitor(client_id, data, auto_create_lead=False)
 
         frappe.db.set_value(
             "Web Visitor",
