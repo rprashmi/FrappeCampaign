@@ -256,19 +256,50 @@ def find_lead_cross_device(email, client_id, org_name):
     existing_lead = None
 
     if email:
-        try:
+    try:
+        # First try: email + organization (normal tracking flow)
+        existing_lead = frappe.db.get_value(
+            "CRM Lead",
+            {"email": email, "organization": org_name},
+            ["name", "email", "mobile_no", "ga_client_id"],
+            as_dict=True
+        )
+
+        # Second try: email only (Wotomate-created lead)
+        if not existing_lead:
             existing_lead = frappe.db.get_value(
                 "CRM Lead",
-                {"email": email, "organization": org_name},
+                {"email": email},
                 ["name", "email", "mobile_no", "ga_client_id"],
                 as_dict=True
             )
-            if existing_lead:
-                frappe.logger().info(f" Found by email: {existing_lead.name}")
-                if client_id and existing_lead.ga_client_id != client_id:
-                    frappe.db.set_value("CRM Lead", existing_lead.name, "ga_client_id", client_id, update_modified=False)
-                    link_web_visitor_to_lead(client_id, existing_lead.name)
-                return existing_lead
+
+        if existing_lead:
+            frappe.logger().info(f" Found existing lead by email: {existing_lead.name}")
+
+            # Update organization if missing
+            if not frappe.db.get_value("CRM Lead", existing_lead.name, "organization"):
+                frappe.db.set_value(
+                    "CRM Lead",
+                    existing_lead.name,
+                    "organization",
+                    org_name,
+                    update_modified=False
+                )
+
+            # Update GA Client ID if missing
+            if client_id and existing_lead.get("ga_client_id") != client_id:
+                frappe.db.set_value(
+                    "CRM Lead",
+                    existing_lead.name,
+                    "ga_client_id",
+                    client_id,
+                    update_modified=False
+                )
+                link_web_visitor_to_lead(client_id, existing_lead.name)
+
+            return existing_lead
+
         except Exception as e:
             frappe.logger().error(f"Error finding by email: {str(e)}")
 

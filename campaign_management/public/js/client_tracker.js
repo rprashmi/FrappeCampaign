@@ -365,32 +365,19 @@ function normalizeFieldNames(data) {
   return normalized;
 }
 
-// HTML FORM TRACKING - FULL JS CONTROL
-let formSubmitting = false;
 
-document.addEventListener('submit', e => {
+// HTML FORM TRACKING - PASSIVE MODE (NON-INTRUSIVE)
+
+document.addEventListener('submit', function (e) {
   const form = e.target;
   if (!form || form.tagName !== 'FORM') return;
 
-  // ALWAYS prevent default - we handle everything
-  e.preventDefault();
-
-  // Prevent duplicate submissions
-  if (formSubmitting || FORM_SUBMIT_SENT) {
-    log('Form already submitting or already sent to GTM');
-    return;
-  }
-  formSubmitting = true;
-  FORM_SUBMIT_SENT = true;
-
-  // Disable submit button
-  const submitBtn = form.querySelector('[type="submit"]');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
-  }
+  // DO NOT prevent default
+  // DO NOT block submission
+  // DO NOT modify UI
 
   const formData = new FormData(form);
+
   const data = {
     form_name: form.getAttribute('name') || form.getAttribute('id') || 'unknown_form',
     form_id: form.id || '',
@@ -398,68 +385,47 @@ document.addEventListener('submit', e => {
     form_type: 'html'
   };
 
-  // Extract form fields
   for (let [key, value] of formData.entries()) {
     const lowerKey = key.toLowerCase();
-    if (!lowerKey.includes('password') && 
-        !lowerKey.includes('pass') && 
-        !lowerKey.includes('pwd') &&
-        !lowerKey.includes('credit') &&
-        !lowerKey.includes('card') &&
-        !lowerKey.includes('cvv') &&
-        !lowerKey.includes('ssn') &&
-        !lowerKey.includes('social')) {
+
+    if (
+      !lowerKey.includes('password') &&
+      !lowerKey.includes('pass') &&
+      !lowerKey.includes('pwd') &&
+      !lowerKey.includes('credit') &&
+      !lowerKey.includes('card') &&
+      !lowerKey.includes('cvv') &&
+      !lowerKey.includes('ssn') &&
+      !lowerKey.includes('social')
+    ) {
       data[key] = value;
     }
   }
 
   const normalizedData = normalizeFieldNames(data);
 
-  // Push to dataLayer
   pushToDataLayer('form_submit', normalizedData);
-  log('Form Submit:', normalizedData.form_name, normalizedData);
-
-  // Wait for GTM to process, then show success
-  setTimeout(() => {
-    // Option A: Show success message on same page
-    form.innerHTML = `
-      <div style="text-align: center; padding: 2rem; background: #059669; color: white; border-radius: 8px;">
-        <h3>✓ Thank You!</h3>
-        <p>We'll be in touch soon.</p>
-      </div>
-    `;
-
-    // Option B: Redirect to thank you page
-    // window.location.href = '/thank-you';
-
-    formSubmitting = false;
-  }, 1000); // Wait 1 second for tracking to complete
+  log('Form Submit (Passive):', normalizedData.form_name, normalizedData);
 });
 
 
-// Frappe Web Forms iframe support
-window.addEventListener('message', e => {
-  if (!e.data || !e.data.event) return;
 
-  if (e.data.event === 'form_submit') {
-    if (FORM_SUBMIT_SENT) {
-      log('Iframe form_submit ignored (already sent)');
-      return;
-    }
-    FORM_SUBMIT_SENT = true;
-    const data = {
-      form_name: e.data.form_name || 'frappe_form',
-      form_type: 'iframe',
-      source: 'frappe_webform',
-      ...e.data
-    };
-    
-    // Normalize field names for iframe forms too
-    const normalizedData = normalizeFieldNames(data);
-    
-    pushToDataLayer('form_submit', normalizedData);
-    log('Form Submit (Iframe):', normalizedData.form_name, normalizedData);
-  }
+// Frappe Web Forms iframe support
+
+window.addEventListener('message', e => {
+  if (!e.data || e.data.event !== 'form_submit') return;
+
+  const data = {
+    form_name: e.data.form_name || 'frappe_form',
+    form_type: 'iframe',
+    source: 'frappe_webform',
+    ...e.data
+  };
+
+  const normalizedData = normalizeFieldNames(data);
+
+  pushToDataLayer('form_submit', normalizedData);
+  log('Form Submit (Iframe):', normalizedData.form_name, normalizedData);
 });
 
 
