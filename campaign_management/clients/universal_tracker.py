@@ -250,6 +250,80 @@ def determine_source(data, org_config):
     frappe.logger().info("=" * 60)
     return "Direct"
 
+def enrich_lead_tracking_fields(lead_doc, data, utm_params, normalized_source, normalized_medium, source, client_id):
+    """
+    Universal enrichment engine — applies ALL tracking fields to any lead doc.
+    
+    Called for BOTH new and existing leads. Also called from track_activity()
+    when a lead is found and the current request carries tracking data.
+    
+    Attribution rules:
+    - ga_client_id: always set if currently empty
+    - UTM fields: first-touch wins, never overwrite existing values
+    - Ad fields: first-touch wins, never overwrite existing values  
+    - source: set only if currently empty
+    - organization: backfill if missing
+    """
+    from campaign_management.clients.base import (
+        get_ad_click_data,
+        enrich_lead_with_facebook_data
+    )
+
+    # Always link ga_client_id if the lead doesn't have one
+    if client_id and not lead_doc.get("ga_client_id"):
+        lead_doc.ga_client_id = client_id
+        frappe.logger().info(f"[Enrich] Set ga_client_id: {client_id}")
+
+    # UTM fields — first touch wins, never overwrite
+    if normalized_source and not lead_doc.get("utm_source"):
+        lead_doc.utm_source = normalized_source
+        frappe.logger().info(f"[Enrich] Set utm_source: {normalized_source}")
+
+    if normalized_medium and not lead_doc.get("utm_medium"):
+        lead_doc.utm_medium = normalized_medium
+        frappe.logger().info(f"[Enrich] Set utm_medium: {normalized_medium}")
+
+    if utm_params.get("utm_campaign") and not lead_doc.get("utm_campaign"):
+        lead_doc.utm_campaign = utm_params.get("utm_campaign")
+        frappe.logger().info(f"[Enrich] Set utm_campaign: {utm_params.get('utm_campaign')}")
+
+    if utm_params.get("utm_campaign_id") and not lead_doc.get("utm_campaign_id"):
+        lead_doc.utm_campaign_id = utm_params.get("utm_campaign_id")
+
+    if utm_params.get("utm_term") and not lead_doc.get("utm_term"):
+        lead_doc.utm_term = utm_params.get("utm_term")
+
+    if utm_params.get("utm_content") and not lead_doc.get("utm_content"):
+        lead_doc.utm_content = utm_params.get("utm_content")
+
+    # Source — only if missing
+    if source and not lead_doc.get("source"):
+        lead_doc.source = source
+        frappe.logger().info(f"[Enrich] Set source: {source}")
+
+    # Ad click data — covers ALL platforms (Facebook, Google, LinkedIn, TikTok, Microsoft etc.)
+    # First touch wins — never overwrite an existing ad attribution
+    ad_data = get_ad_click_data(data)
+    if ad_data.get("ad_platform"):
+        if not lead_doc.get("ad_platform"):
+            lead_doc.ad_platform = ad_data["ad_platform"]
+            frappe.logger().info(f"[Enrich] Set ad_platform: {ad_data['ad_platform']}")
+        if not lead_doc.get("ad_click_id"):
+            lead_doc.ad_click_id = ad_data["ad_click_id"]
+            frappe.logger().info(f"[Enrich] Set ad_click_id: {ad_data['ad_click_id']}")
+        if not lead_doc.get("ad_click_timestamp"):
+            lead_doc.ad_click_timestamp = ad_data["ad_click_timestamp"]
+        if not lead_doc.get("ad_landing_page"):
+            lead_doc.ad_landing_page = ad_data["ad_landing_page"]
+    else:
+        frappe.logger().info(f"[Enrich] No ad click data in this request")
+
+    # Facebook-specific enrichment (fbclid written to Facebook-specific fields, source label etc.)
+    # enrich_lead_with_facebook_data already checks internally before overwriting
+    lead_doc = enrich_lead_with_facebook_data(lead_doc, data)
+
+    return lead_doc
+
 
 def find_lead_cross_device(email, client_id, org_name):
     """Cross-Device Mapping: Find lead by email OR client_id"""
@@ -307,15 +381,27 @@ def find_lead_cross_device(email, client_id, org_name):
     
     if client_id:
         try:
+            # No organization filter — leads created by other apps (e.g. wotomatewa_provider)
+            # may not have organization set. We find by client_id globally.
             existing_lead = frappe.db.get_value(
                 "CRM Lead",
-                {"ga_client_id": client_id, "organization": org_name},
-                ["name", "email", "mobile_no", "ga_client_id"],
+                {"ga_client_id": client_id},
+                ["name", "email", "mobile_no", "ga_client_id", "organization"],
                 as_dict=True
             )
 
             if existing_lead:
                 frappe.logger().info(f"Found existing lead by client_id: {existing_lead.name}")
+                # Backfill organization if lead was created by another app without it
+                if not existing_lead.get("organization") and org_name:
+                    frappe.db.set_value(
+                        "CRM Lead",
+                        existing_lead.name,
+                        "organization",
+                        org_name,
+                        update_modified=False
+                    )
+                    frappe.logger().info(f"Backfilled organization '{org_name}' on lead {existing_lead.name}")
                 return existing_lead
 
         except Exception as e:
@@ -765,6 +851,7 @@ def submit_form(**kwargs):
         if existing_lead:
             lead = frappe.get_doc("CRM Lead", existing_lead["name"])
 
+            # Form-specific contact fields — fill only if currently empty
             if phone and not lead.get("mobile_no"):
                 lead.mobile_no = phone
                 frappe.logger().info(f"Updated phone: {phone}")
@@ -772,7 +859,6 @@ def submit_form(**kwargs):
             if company and not lead.get("lead_company"):
                 lead.lead_company = company
                 frappe.logger().info(f"Updated company: {company}")
-
 
             if territory and not lead.get("territory"):
                 lead.territory = territory
@@ -782,27 +868,32 @@ def submit_form(**kwargs):
                 lead.gender = gender
                 frappe.logger().info(f"Updated gender: {gender}")
 
-            if message:
-                lead.add_comment("Info", f"Form submission: {message}")
-                frappe.logger().info(f"Added comment")
-
-            if normalized_source and not lead.utm_source:
-                lead.utm_source = normalized_source
-
-            if normalized_medium and not lead.utm_medium:
-                lead.utm_medium = normalized_medium
-
-            if utm_params.get("utm_campaign") and not lead.utm_campaign:
-                lead.utm_campaign = utm_params.get("utm_campaign")
-
-            if utm_params.get("utm_campaign_id") and not lead.utm_campaign_id:
-                lead.utm_campaign_id = utm_params.get("utm_campaign_id")
+            # Apply ALL tracking enrichment — UTM + ad platform + Facebook + ga_client_id
+            # This is the key fix: previously these fields were never set for existing leads
+            lead = enrich_lead_tracking_fields(
+                lead_doc=lead,
+                data=data,
+                utm_params=utm_params,
+                normalized_source=normalized_source,
+                normalized_medium=normalized_medium,
+                source=source,
+                client_id=client_id
+            )
 
             lead.save(ignore_permissions=True)
 
+            if message:
+                lead.add_comment("Info", f"Form submission: {message}")
+
+            # Link visitor and migrate historical activities
+            # (in case lead was created by another app and visitor was never linked)
+            if client_id:
+                link_web_visitor_to_lead(client_id, lead.name)
+                link_historical_activities_to_lead(client_id, lead.name)
+
             add_activity_to_lead(lead.name, {
                 "activity_type": "Form Submission",
-                "page_url_full": page_url,
+                "page_url": page_url,           # NOTE: key is "page_url" not "page_url_full"
                 "timestamp": now(),
                 "browser": f"{browser_details['browser']} on {browser_details['os']}",
                 "device": browser_details["device"],
@@ -811,7 +902,8 @@ def submit_form(**kwargs):
                 "client_id": client_id,
                 "utm_source": normalized_source,
                 "utm_medium": normalized_medium,
-                "utm_campaign": utm_params.get("utm_campaign")
+                "utm_campaign": utm_params.get("utm_campaign"),
+                "fbclid": data.get("fbclid") or data.get("ad_click_id_value") or ""
             })
 
             frappe.db.commit()
@@ -819,7 +911,9 @@ def submit_form(**kwargs):
             return {
                 "success": True,
                 "lead": lead.name,
-                "organization": org_name
+                "organization": org_name,
+                "is_new_lead": False,
+                "from_facebook_ad": bool(data.get("fbclid") or data.get("ad_click_id_value"))
             }
 
         website_url = page_url.split("?")[0]
@@ -855,7 +949,17 @@ def submit_form(**kwargs):
         }
 
         lead = frappe.get_doc(lead_data)
-        lead = enrich_lead_with_facebook_data(lead, data)
+        # Use the same enrichment engine as the existing-lead path
+        # enrich_lead_tracking_fields internally calls enrich_lead_with_facebook_data
+        lead = enrich_lead_tracking_fields(
+            lead_doc=lead,
+            data=data,
+            utm_params=utm_params,
+            normalized_source=normalized_source,
+            normalized_medium=normalized_medium,
+            source=source,
+            client_id=client_id
+        )
         lead.insert(ignore_permissions=True)
         frappe.db.commit()
 
@@ -987,21 +1091,61 @@ def track_activity(**kwargs):
             )
 
         if lead_name:
-            lead_org = frappe.db.get_value(
-                "CRM Lead",
-                lead_name,
-                "organization"
-            )
+            lead_org = frappe.db.get_value("CRM Lead", lead_name, "organization")
 
-            if lead_org != org_name:
-                frappe.logger().warning(
-                    f"Lead {lead_name} belongs to {lead_org}, "
-                    f"but activity is for {org_name}. Skipping lead link."
+            # Do not drop the lead just because organization doesn't match or is empty.
+            # Leads created by other apps (e.g. wotomatewa_provider) have no organization.
+            # We still enrich and link them — that IS the purpose of tracking.
+            if lead_org and lead_org != org_name:
+                frappe.logger().info(
+                    f"Lead {lead_name} has org '{lead_org}', activity is for '{org_name}'. "
+                    f"Still enriching — cross-app lead."
                 )
-                lead_name = None
-            else:
-                link_web_visitor_to_lead(client_id, lead_name)
-                link_historical_activities_to_lead(client_id, lead_name)
+
+            # Always link visitor and historical activities
+            link_web_visitor_to_lead(client_id, lead_name)
+            link_historical_activities_to_lead(client_id, lead_name)
+
+            # Enrich lead with ad/UTM data from this request IF the request carries tracking data
+            # This ensures a lead created before the user clicked an ad gets enriched on next visit
+            try:
+                utm_for_enrich = get_utm_params_from_data(data)
+                has_tracking_data = (
+                    data.get("fbclid") or
+                    data.get("gclid") or
+                    data.get("msclkid") or
+                    data.get("li_fat_id") or
+                    data.get("ttclid") or
+                    utm_for_enrich.get("utm_source")
+                )
+
+                if has_tracking_data:
+                    frappe.logger().info(f"[track_activity] Enriching lead {lead_name} with tracking data from this request")
+                    source_for_enrich = determine_source(data, org_config)
+                    norm_source = normalize_utm_value(utm_for_enrich.get("utm_source"), "source")
+                    norm_medium = normalize_utm_value(utm_for_enrich.get("utm_medium"), "medium")
+
+                    lead_doc = frappe.get_doc("CRM Lead", lead_name)
+                    lead_doc = enrich_lead_tracking_fields(
+                        lead_doc=lead_doc,
+                        data=data,
+                        utm_params=utm_for_enrich,
+                        normalized_source=norm_source,
+                        normalized_medium=norm_medium,
+                        source=source_for_enrich,
+                        client_id=client_id
+                    )
+                    lead_doc.save(ignore_permissions=True)
+                    frappe.logger().info(f"[track_activity] Lead {lead_name} enriched successfully")
+
+            except Exception as enrich_err:
+                # NEVER fail activity tracking because of enrichment errors
+                frappe.logger().error(
+                    f"[track_activity] Enrichment failed for lead {lead_name}: {str(enrich_err)}"
+                )
+                frappe.log_error(frappe.get_traceback(), "track_activity Enrichment Error")
+
+
 
         percent_scrolled = data.get("percent_scrolled", "")
         if "scroll" in activity_type.lower() and percent_scrolled:

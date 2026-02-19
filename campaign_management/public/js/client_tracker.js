@@ -372,9 +372,6 @@ document.addEventListener('submit', function (e) {
   const form = e.target;
   if (!form || form.tagName !== 'FORM') return;
 
-  // DO NOT prevent default
-  // DO NOT block submission
-  // DO NOT modify UI
 
   const formData = new FormData(form);
 
