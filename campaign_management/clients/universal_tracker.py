@@ -821,30 +821,29 @@ def submit_form(**kwargs):
         )
 
         page_url = str(data.get("page_url_full") or data.get("page_url") or data.get("page_location") or "")
-        # raw_page_url = str(datadata.get("page_url") or .get("page_url") or "")
-        # parsed_url = urlparse(raw_page_url)
-
-        #page_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        #page_url_full = raw_page_url
         referrer = str(data.get("referrer") or data.get("page_referrer") or "")
-
-        # Dedup guard — catches race condition where provider_signup and submit_form
-        # fire simultaneously. Checks by email (no org filter) and extends window to 10s.
+        
+        existing_lead = None
+        
         if email:
             recent_lead = frappe.db.sql("""
                 SELECT name, creation
                 FROM `tabCRM Lead`  
                 WHERE email = %s
-                AND creation > DATE_SUB(NOW(), INTERVAL 10 SECOND)
+                AND creation > DATE_SUB(NOW(), INTERVAL 30 SECOND)
                 ORDER BY creation DESC 
                 LIMIT 1
             """, (email,), as_dict=1)
             
             if recent_lead:
-                frappe.logger().info(f"[Dedup] Recent lead found by email, enriching instead of creating")
-                frappe.logger().info(f"   Lead: {recent_lead[0].name}")
-                # Fall through — find_lead_cross_device below will find and enrich it
-                # DO NOT return here, let enrichment run
+                frappe.logger().info(f"[Dedup] Race condition caught — lead exists, forcing enrichment path")
+                # Force existing_lead to be set so we skip the creation path entirely
+                existing_lead = frappe.db.get_value(
+                    "CRM Lead",
+                    recent_lead[0].name,
+                    ["name", "email", "mobile_no", "ga_client_id"],
+                    as_dict=True
+                )
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
@@ -890,12 +889,12 @@ def submit_form(**kwargs):
             "referrer": referrer
         }
 
-        existing_lead = find_lead_cross_device(email, client_id, org_name)
+        if not existing_lead:
+            existing_lead = find_lead_cross_device(email, client_id, org_name)
 
         if existing_lead:
             lead = frappe.get_doc("CRM Lead", existing_lead["name"])
 
-            # Form-specific contact fields — fill only if currently empty
             if phone and not lead.get("mobile_no"):
                 lead.mobile_no = phone
                 frappe.logger().info(f"Updated phone: {phone}")
