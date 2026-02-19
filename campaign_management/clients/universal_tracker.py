@@ -417,6 +417,46 @@ def find_lead_cross_device(email, client_id, org_name):
 
     return None
 
+# ==========================================================
+# UPSERT LEAD (CREATE OR UPDATE SAFELY)
+# ==========================================================
+def get_or_create_lead_upsert(lead_data, email, client_id, org_name):
+    """
+    UPSERT PATTERN:
+    - find lead by email/client_id
+    - if exists → return it
+    - if not → create safely
+    """
+
+    # 1️⃣ Try finding existing lead
+    existing = find_lead_cross_device(email, client_id, org_name)
+
+    if existing:
+        frappe.logger().info(f"[UPSERT] Existing lead found: {existing['name']}")
+        return frappe.get_doc("CRM Lead", existing["name"]), False
+
+    # 2️⃣ Create new lead
+    frappe.logger().info("[UPSERT] Creating new lead")
+
+    lead = frappe.get_doc(lead_data)
+
+    try:
+        lead.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return lead, True
+
+    except Exception as e:
+        # 🔥 race condition protection
+        frappe.logger().warning("[UPSERT] Insert failed, retrying fetch")
+
+        existing = find_lead_cross_device(email, client_id, org_name)
+
+        if existing:
+            return frappe.get_doc("CRM Lead", existing["name"]), False
+
+        raise e
+
+
 
 def normalize_country_to_territory(country_value):
     """
@@ -788,27 +828,23 @@ def submit_form(**kwargs):
         #page_url_full = raw_page_url
         referrer = str(data.get("referrer") or data.get("page_referrer") or "")
 
-        if client_id:
+        # Dedup guard — catches race condition where provider_signup and submit_form
+        # fire simultaneously. Checks by email (no org filter) and extends window to 10s.
+        if email:
             recent_lead = frappe.db.sql("""
                 SELECT name, creation
                 FROM `tabCRM Lead`  
-                WHERE ga_client_id = %s
-                AND organization = %s
-                AND creation > DATE_SUB(NOW(), INTERVAL 5 SECOND)
+                WHERE email = %s
+                AND creation > DATE_SUB(NOW(), INTERVAL 10 SECOND)
                 ORDER BY creation DESC 
                 LIMIT 1
-            """, (client_id, org_name), as_dict=1)
+            """, (email,), as_dict=1)
             
             if recent_lead:
-                frappe.logger().info(f"Duplicate submission prevented")
+                frappe.logger().info(f"[Dedup] Recent lead found by email, enriching instead of creating")
                 frappe.logger().info(f"   Lead: {recent_lead[0].name}")
-                frappe.logger().info(f"   Created: {recent_lead[0].creation}")
-                return {
-                    "success": True,
-                    "lead": recent_lead[0].name,
-                    "organization": org_name,
-                    "duplicate_prevented": True
-                }
+                # Fall through — find_lead_cross_device below will find and enrich it
+                # DO NOT return here, let enrichment run
 
         browser_details = extract_browser_details(user_agent)
         geo_info = get_geo_info_from_ip(ip_address)
@@ -956,9 +992,7 @@ def submit_form(**kwargs):
             )
         }
 
-        lead = frappe.get_doc(lead_data)
-        # Use the same enrichment engine as the existing-lead path
-        # enrich_lead_tracking_fields internally calls enrich_lead_with_facebook_data
+        lead, is_new = get_or_create_lead_upsert(lead_data, email, client_id, org_name)
         lead = enrich_lead_tracking_fields(
             lead_doc=lead,
             data=data,
@@ -968,7 +1002,7 @@ def submit_form(**kwargs):
             source=source,
             client_id=client_id
         )
-        lead.insert(ignore_permissions=True)
+        lead.save(ignore_permissions=True)
         frappe.db.commit()
 
         if client_id:
@@ -976,7 +1010,7 @@ def submit_form(**kwargs):
             link_historical_activities_to_lead(client_id, lead.name)
 
         add_activity_to_lead(lead.name, {
-            "activity_type": "First Form Submission",
+            "activity_type": "First Form Submission" if is_new else "Form Submission",
             "page_url_full": page_url,
             "timestamp": now(),
             "browser": f"{browser_details['browser']} on {browser_details['os']}",
