@@ -30,7 +30,9 @@ def get_ad_click_data(data):
             ad_info['ad_platform'] = platform_name
             ad_info['ad_click_id'] = click_id
             ad_info['ad_click_timestamp'] = now()
-            ad_info['ad_landing_page'] = str(data.get('page_url') or data.get('page_location') or "")
+            raw_landing = str(data.get('page_url') or data.get('page_location') or "")
+            ad_info['ad_landing_page'] = raw_landing.split('?')[0][:140]
+            # ad_info['ad_landing_page'] = str(data.get('page_url') or data.get('page_location') or "")
             frappe.logger().info(f"✅ Ad Click Detected: {platform_name} (from direct param: {param_name})")
             frappe.logger().info(f"   Click ID: {click_id}")
             return ad_info
@@ -49,7 +51,9 @@ def get_ad_click_data(data):
                         ad_info['ad_platform'] = platform_name
                         ad_info['ad_click_id'] = click_id
                         ad_info['ad_click_timestamp'] = now()
-                        ad_info['ad_landing_page'] = page_url.split('?')[0]
+                        raw_landing = str(data.get('page_url') or data.get('page_location') or "")
+                        ad_info['ad_landing_page'] = raw_landing.split('?')[0][:140]
+                        # ad_info['ad_landing_page'] = page_url.split('?')[0]
                         frappe.logger().info(f"✅ Ad Click Detected: {platform_name} (from page_url: {param_name})")
                         frappe.logger().info(f"   Click ID: {click_id}")
                         return ad_info
@@ -70,7 +74,9 @@ def get_ad_click_data(data):
                         ad_info['ad_platform'] = platform_name
                         ad_info['ad_click_id'] = click_id
                         ad_info['ad_click_timestamp'] = now()
-                        ad_info['ad_landing_page'] = str(data.get('page_url') or data.get('page_location') or "")
+                        raw_landing = str(data.get('page_url') or data.get('page_location') or "")
+                        ad_info['ad_landing_page'] = raw_landing.split('?')[0][:140]
+                        # ad_info['ad_landing_page'] = str(data.get('page_url') or data.get('page_location') or "")
                         frappe.logger().info(f"✅ Ad Click Detected: {platform_name} (from referrer: {param_name})")
                         frappe.logger().info(f"   Click ID: {click_id}")
                         return ad_info

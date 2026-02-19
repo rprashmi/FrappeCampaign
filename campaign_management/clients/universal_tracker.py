@@ -309,12 +309,20 @@ def enrich_lead_tracking_fields(lead_doc, data, utm_params, normalized_source, n
             lead_doc.ad_platform = ad_data["ad_platform"]
             frappe.logger().info(f"[Enrich] Set ad_platform: {ad_data['ad_platform']}")
         if not lead_doc.get("ad_click_id"):
-            lead_doc.ad_click_id = ad_data["ad_click_id"]
-            frappe.logger().info(f"[Enrich] Set ad_click_id: {ad_data['ad_click_id']}")
+            # ad_click_id is a short Data field (max 140 chars) — store truncated version
+            full_click_id = ad_data["ad_click_id"] or ""
+            lead_doc.ad_click_id = full_click_id[:140] if full_click_id else None
+            frappe.logger().info(f"[Enrich] Set ad_click_id (truncated): {lead_doc.ad_click_id}")
+        if not lead_doc.get("ad_click_id_full"):
+            # ad_click_id_full is Long Text — store the complete raw value, no truncation
+            lead_doc.ad_click_id_full = ad_data["ad_click_id"]
+            frappe.logger().info(f"[Enrich] Set ad_click_id_full: {ad_data['ad_click_id']}")
         if not lead_doc.get("ad_click_timestamp"):
             lead_doc.ad_click_timestamp = ad_data["ad_click_timestamp"]
         if not lead_doc.get("ad_landing_page"):
-            lead_doc.ad_landing_page = ad_data["ad_landing_page"]
+            # ad_landing_page is also likely a Data field — truncate to be safe
+            landing = ad_data["ad_landing_page"] or ""
+            lead_doc.ad_landing_page = landing[:140] if landing else None
     else:
         frappe.logger().info(f"[Enrich] No ad click data in this request")
 
