@@ -191,6 +191,29 @@ console.log('CONFIG loaded:', CONFIG);
     }, 100);
   });
 
+  // DOM PATH HELPER
+  function getDomPath(el) {
+    if (!el) return '';
+    const path = [];
+    while (el && el.nodeType === Node.ELEMENT_NODE) {
+      let selector = el.nodeName.toLowerCase();
+      if (el.id) {
+        selector += '#' + el.id;
+        path.unshift(selector);
+        break;
+      } else {
+        let sib = el, nth = 1;
+        while ((sib = sib.previousElementSibling)) {
+          if (sib.nodeName === el.nodeName) nth++;
+        }
+        if (nth > 1) selector += ':nth-of-type(' + nth + ')';
+      }
+      path.unshift(selector);
+      el = el.parentNode;
+    }
+    return path.slice(-4).join(' > ');
+  }
+
   // CLICK TRACKING
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-nav-item], [data-cta-name], [data-footer-link], [data-tab], a, button');
@@ -366,7 +389,7 @@ function normalizeFieldNames(data) {
 }
 
 
-// HTML FORM TRACKING - PASSIVE MODE (NON-INTRUSIVE)
+// HTML FORM TRACKING 
 
 document.addEventListener('submit', function (e) {
   const form = e.target;
