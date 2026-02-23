@@ -395,7 +395,9 @@ document.addEventListener('submit', function (e) {
   const form = e.target;
   if (!form || form.tagName !== 'FORM') return;
 
-
+  const hasPassword = form.querySelector('input[type="password"]');
+  if (hasPassword) return;
+  
   const formData = new FormData(form);
 
   const data = {
