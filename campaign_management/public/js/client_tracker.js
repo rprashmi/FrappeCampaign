@@ -428,7 +428,153 @@ document.addEventListener('submit', function (e) {
   log('Form Submit (Passive):', normalizedData.form_name, normalizedData);
 });
 
+// ==============================
+// AJAX FORM SUBMIT AUTO-DETECTION
+// Patches fetch + XHR to detect successful form submissions universally.
+// No per-site config needed.
+// ==============================
 
+(function patchAjax() {
+
+  // --- Heuristics ---
+
+  // URL patterns that strongly suggest a form submission endpoint
+  const FORM_URL_PATTERNS = [
+    /signup/i, /register/i, /login/i, /contact/i, /subscribe/i,
+    /submit/i, /enquir/i, /inquiry/i, /booking/i, /quote/i,
+    /apply/i, /join/i, /lead/i, /demo/i, /trial/i, /webform/i,
+    /api\/method/i  // Frappe-specific
+  ];
+
+  // Body keys that suggest a form payload (not analytics/tracking/config calls)
+  const FORM_BODY_KEYS = [
+    'email', 'phone', 'mobile', 'first_name', 'last_name', 'name',
+    'message', 'company', 'password', 'username', 'contact'
+  ];
+
+  // Keys to always strip from reported body (PII / sensitive)
+  const SENSITIVE_KEYS = [
+    'password', 'pass', 'pwd', 'credit', 'card', 'cvv', 'ssn', 'social', 'token'
+  ];
+
+  function looksLikeFormUrl(url) {
+    return FORM_URL_PATTERNS.some(p => p.test(url));
+  }
+
+  function looksLikeFormBody(parsedBody) {
+    if (!parsedBody || typeof parsedBody !== 'object') return false;
+    const keys = Object.keys(parsedBody).map(k => k.toLowerCase());
+    return FORM_BODY_KEYS.some(fk => keys.some(k => k.includes(fk)));
+  }
+
+  function safeParseBody(body) {
+    if (!body) return null;
+    if (typeof body === 'object' && !(body instanceof FormData) && !(body instanceof URLSearchParams)) {
+      return body; // already parsed
+    }
+    if (typeof body === 'string') {
+      try { return JSON.parse(body); } catch (_) {}
+      try {
+        return Object.fromEntries(new URLSearchParams(body));
+      } catch (_) {}
+    }
+    if (body instanceof FormData || body instanceof URLSearchParams) {
+      const obj = {};
+      body.forEach((v, k) => { obj[k] = v; });
+      return obj;
+    }
+    return null;
+  }
+
+  function sanitizeBody(obj) {
+    if (!obj) return {};
+    return Object.fromEntries(
+      Object.entries(obj).filter(([k]) =>
+        !SENSITIVE_KEYS.some(s => k.toLowerCase().includes(s))
+      )
+    );
+  }
+
+  function isFormSubmission(url, parsedBody) {
+    return looksLikeFormUrl(url) || looksLikeFormBody(parsedBody);
+  }
+
+  function emitAjaxFormSubmit(url, parsedBody, statusCode) {
+    const sanitized = sanitizeBody(parsedBody);
+    const normalized = normalizeFieldNames(sanitized);
+    pushToDataLayer('form_submit', {
+      ...normalized,
+      source: 'auto_tracking',
+      form_type: 'ajax',
+      ajax_url: url,
+      http_status: statusCode
+    });
+    log('Form Submit (AJAX):', url, normalized);
+  }
+
+  // --- Patch fetch ---
+
+  const _originalFetch = window.fetch;
+  window.fetch = function (resource, options) {
+    const url = (typeof resource === 'string' ? resource : resource?.url) || '';
+    const method = ((options?.method) || 'GET').toUpperCase();
+
+    let parsedBody = null;
+    if (method !== 'GET' && method !== 'HEAD') {
+      parsedBody = safeParseBody(options?.body);
+    }
+
+    // Only intercept if it looks like a form submission
+    if (!isFormSubmission(url, parsedBody)) {
+      return _originalFetch.apply(this, arguments);
+    }
+
+    return _originalFetch.apply(this, arguments).then(response => {
+      // Clone so the original response stream is untouched
+      if (response.ok) {
+        emitAjaxFormSubmit(url, parsedBody, response.status);
+      }
+      return response;
+    }).catch(err => {
+      // Never break the original call
+      throw err;
+    });
+  };
+
+  // --- Patch XMLHttpRequest ---
+
+  const _origOpen = XMLHttpRequest.prototype.open;
+  const _origSend = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this.__tracker_url__ = url || '';
+    this.__tracker_method__ = (method || 'GET').toUpperCase();
+    return _origOpen.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function (body) {
+    const url = this.__tracker_url__ || '';
+    const method = this.__tracker_method__ || 'GET';
+
+    let parsedBody = null;
+    if (method !== 'GET' && method !== 'HEAD') {
+      parsedBody = safeParseBody(body);
+    }
+
+    if (isFormSubmission(url, parsedBody)) {
+      this.addEventListener('load', function () {
+        if (this.status >= 200 && this.status < 300) {
+          emitAjaxFormSubmit(url, parsedBody, this.status);
+        }
+      });
+    }
+
+    return _origSend.apply(this, arguments);
+  };
+
+  log('✓ AJAX Form Auto-Detection Patched (fetch + XHR)');
+
+})();
 
 // Frappe Web Forms iframe support
 
