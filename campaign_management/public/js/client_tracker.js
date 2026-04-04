@@ -1,6 +1,6 @@
 /**
  * Universal Client Tracker v4.0 - DataLayer Only
- * Purpose: Collect events → Push to GTM Web Container → Let GTM handle the rest
+ * Purpose: Collect events → Push to GTM Web Container →  GTM handle the rest
  * Architecture: Website → GTM Web → GTM Server → Frappe + GA4
  */
 
@@ -13,10 +13,10 @@
   let FORM_SUBMIT_SENT = false;
 
   
-  // Find the script tag that loaded this file
+  
 const script = document.currentScript || document.querySelector('script[src*="client_tracker.js"]');
 
-// Debug log to see what we're getting
+
 if (script) {
   console.log('Script element found:', script);
   console.log('data-tracking-key attribute:', script.getAttribute('data-tracking-key'));
@@ -432,29 +432,25 @@ document.addEventListener('submit', function (e) {
 
 // ==============================
 // AJAX FORM SUBMIT AUTO-DETECTION
-// Patches fetch + XHR to detect successful form submissions universally.
-// No per-site config needed.
 // ==============================
 
 (function patchAjax() {
 
-  // --- Heuristics ---
-
-  // URL patterns that strongly suggest a form submission endpoint
+ 
   const FORM_URL_PATTERNS = [
     /signup/i, /register/i, /login/i, /contact/i, /subscribe/i,
     /submit/i, /enquir/i, /inquiry/i, /booking/i, /quote/i,
     /apply/i, /join/i, /lead/i, /demo/i, /trial/i, /webform/i,
-    /api\/method/i  // Frappe-specific
+    /api\/method/i  
   ];
 
-  // Body keys that suggest a form payload (not analytics/tracking/config calls)
+  
   const FORM_BODY_KEYS = [
     'email', 'phone', 'mobile', 'first_name', 'last_name', 'name',
     'message', 'company', 'password', 'username', 'contact'
   ];
 
-  // Keys to always strip from reported body (PII / sensitive)
+  
   const SENSITIVE_KEYS = [
     'password', 'pass', 'pwd', 'credit', 'card', 'cvv', 'ssn', 'social', 'token'
   ];
@@ -472,7 +468,7 @@ document.addEventListener('submit', function (e) {
   function safeParseBody(body) {
     if (!body) return null;
     if (typeof body === 'object' && !(body instanceof FormData) && !(body instanceof URLSearchParams)) {
-      return body; // already parsed
+      return body; 
     }
     if (typeof body === 'string') {
       try { return JSON.parse(body); } catch (_) {}
@@ -526,19 +522,19 @@ document.addEventListener('submit', function (e) {
       parsedBody = safeParseBody(options?.body);
     }
 
-    // Only intercept if it looks like a form submission
+    
     if (!isFormSubmission(url, parsedBody)) {
       return _originalFetch.apply(this, arguments);
     }
 
     return _originalFetch.apply(this, arguments).then(response => {
-      // Clone so the original response stream is untouched
+      
       if (response.ok) {
         emitAjaxFormSubmit(url, parsedBody, response.status);
       }
       return response;
     }).catch(err => {
-      // Never break the original call
+      
       throw err;
     });
   };

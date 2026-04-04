@@ -176,7 +176,7 @@ def get_custom_fields():
              "insert_after": "analytics_column",
              "description": "Google Analytics 4 Property ID (optional)"},
 
-            # ✅ NEW: Facebook Pixel Configuration
+            
             {"fieldname": "advertising_section",
              "label": "Advertising & Conversion Tracking",
              "fieldtype": "Section Break",

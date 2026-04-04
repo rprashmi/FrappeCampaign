@@ -296,31 +296,30 @@ def enrich_lead_tracking_fields(lead_doc, data, utm_params, normalized_source, n
     if utm_params.get("utm_content") and not lead_doc.get("utm_content"):
         lead_doc.utm_content = utm_params.get("utm_content")
 
-    # Source — only if missing
+    
     if source and not lead_doc.get("source"):
         lead_doc.source = source
         frappe.logger().info(f"[Enrich] Set source: {source}")
 
-    # Ad click data — covers ALL platforms (Facebook, Google, LinkedIn, TikTok, Microsoft etc.)
-    # First touch wins — never overwrite an existing ad attribution
+    
     ad_data = get_ad_click_data(data)
     if ad_data.get("ad_platform"):
         if not lead_doc.get("ad_platform"):
             lead_doc.ad_platform = ad_data["ad_platform"]
             frappe.logger().info(f"[Enrich] Set ad_platform: {ad_data['ad_platform']}")
         if not lead_doc.get("ad_click_id"):
-            # ad_click_id is a short Data field (max 140 chars) — store truncated version
+            
             full_click_id = ad_data["ad_click_id"] or ""
             lead_doc.ad_click_id = full_click_id[:140] if full_click_id else None
             frappe.logger().info(f"[Enrich] Set ad_click_id (truncated): {lead_doc.ad_click_id}")
         if not lead_doc.get("ad_click_id_full"):
-            # ad_click_id_full is Long Text — store the complete raw value, no truncation
+           
             lead_doc.ad_click_id_full = ad_data["ad_click_id"]
             frappe.logger().info(f"[Enrich] Set ad_click_id_full: {ad_data['ad_click_id']}")
         if not lead_doc.get("ad_click_timestamp"):
             lead_doc.ad_click_timestamp = ad_data["ad_click_timestamp"]
         if not lead_doc.get("ad_landing_page"):
-            # ad_landing_page is also likely a Data field — truncate to be safe
+            
             landing = ad_data["ad_landing_page"] or ""
             lead_doc.ad_landing_page = landing[:140] if landing else None
     else:
@@ -389,8 +388,7 @@ def find_lead_cross_device(email, client_id, org_name):
     
     if client_id:
         try:
-            # No organization filter — leads created by other apps (e.g. wotomatewa_provider)
-            # may not have organization set. We find by client_id globally.
+           
             existing_lead = frappe.db.get_value(
                 "CRM Lead",
                 {"ga_client_id": client_id},
@@ -400,7 +398,7 @@ def find_lead_cross_device(email, client_id, org_name):
 
             if existing_lead:
                 frappe.logger().info(f"Found existing lead by client_id: {existing_lead.name}")
-                # Backfill organization if lead was created by another app without it
+                
                 if not existing_lead.get("organization") and org_name:
                     frappe.db.set_value(
                         "CRM Lead",
@@ -428,14 +426,14 @@ def get_or_create_lead_upsert(lead_data, email, client_id, org_name):
     - if not → create safely
     """
 
-    # 1️⃣ Try finding existing lead
+    # 1️ Try finding existing lead
     existing = find_lead_cross_device(email, client_id, org_name)
 
     if existing:
         frappe.logger().info(f"[UPSERT] Existing lead found: {existing['name']}")
         return frappe.get_doc("CRM Lead", existing["name"]), False
 
-    # 2️⃣ Create new lead
+    # 2️ Create new lead
     frappe.logger().info("[UPSERT] Creating new lead")
 
     lead = frappe.get_doc(lead_data)
@@ -446,7 +444,7 @@ def get_or_create_lead_upsert(lead_data, email, client_id, org_name):
         return lead, True
 
     except Exception as e:
-        # 🔥 race condition protection
+        #  race condition protection
         frappe.logger().warning("[UPSERT] Insert failed, retrying fetch")
 
         existing = find_lead_cross_device(email, client_id, org_name)
@@ -463,11 +461,6 @@ def normalize_country_to_territory(country_value):
     Convert country data to territory format.
     CRM Lead uses 'territory' field for country/region data.
     
-    Args:
-        country_value: Country name, code, or territory value
-        
-    Returns:
-        str: Territory value suitable for CRM Lead territory field
     """
     if not country_value:
         return None
@@ -544,10 +537,10 @@ def identify_organization(data):
             frappe.logger().error(f"Available keys: {list(ORGANIZATION_CONFIG.keys())}")
             raise ValueError(f"Unknown tracking_key: {tracking_key}")
     
-    # 2. Check page_url domain
+    
     page_url = str(data.get("page_url_full") or data.get("page_url") or data.get("page_location") or "")
     if page_url:
-        # Log truncated version for readability
+        
         display_url = page_url[:100] + "..." if len(page_url) > 100 else page_url
         frappe.logger().info(f"Checking page_url: {display_url}")
         
@@ -609,7 +602,7 @@ def identify_organization(data):
                     frappe.logger().info(f" Org identified via keyword match: {key} (keyword: {keyword})")
                     return config
     
-    # 6. Default to first organization if only one exists
+    
     if len(ORGANIZATION_CONFIG) == 1:
         default_key = list(ORGANIZATION_CONFIG.keys())[0]
         default_org = ORGANIZATION_CONFIG[default_key]
@@ -635,17 +628,11 @@ def verify_organization_exists(org_name, org_config=None):
     FIXED: Verify if organization exists in CRM.
     Handles both direct CRM Organization names and Tracking Organization links.
     
-    Args:
-        org_name: Name to check (from identify_organization)
-        org_config: Optional org_config dict with crm_organization field
-    
-    Returns:
-        bool: True if organization exists in CRM, False otherwise
     """
     try:
         frappe.logger().info(f"🔍 Verifying organization: '{org_name}'")
         
-        # Method 1: If org_config has crm_organization, use that
+        
         if org_config and org_config.get("crm_organization"):
             crm_org_name = org_config["crm_organization"]
             frappe.logger().info(f"🔗 Using CRM Organization from config: '{crm_org_name}'")
@@ -656,12 +643,12 @@ def verify_organization_exists(org_name, org_config=None):
             else:
                 frappe.logger().error(f"❌ CRM Organization '{crm_org_name}' not found in database")
         
-        # Method 2: Try direct lookup by org_name
+        
         if frappe.db.exists("CRM Organization", org_name):
             frappe.logger().info(f"✅ Found CRM Organization directly: '{org_name}'")
             return True
         
-        # Method 3: Query Tracking Organization for crm_organization link
+       
         tracking_org_data = frappe.db.get_value(
             "Tracking Organization",
             {"organization_name": org_name, "is_active": 1},
@@ -679,10 +666,10 @@ def verify_organization_exists(org_name, org_config=None):
             else:
                 frappe.logger().error(f" Linked CRM Organization '{crm_org}' not found")
         
-        # Organization not found - provide detailed debug info
+        
         frappe.logger().error(f" Organization '{org_name}' not found in CRM")
         
-        # Debug: List available organizations
+     
         all_crm_orgs = frappe.get_all("CRM Organization", pluck="name", limit=20)
         all_tracking_orgs = frappe.get_all(
             "Tracking Organization",
@@ -837,7 +824,7 @@ def submit_form(**kwargs):
             
             if recent_lead:
                 frappe.logger().info(f"[Dedup] Race condition caught — lead exists, forcing enrichment path")
-                # Force existing_lead to be set so we skip the creation path entirely
+                
                 existing_lead = frappe.db.get_value(
                     "CRM Lead",
                     recent_lead[0].name,
@@ -855,13 +842,13 @@ def submit_form(**kwargs):
 
         try:
             parsed = urlparse(page_url)
-            # Format: scheme://domain/path (no query params)
+           
             website_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
             website_url = website_url.rstrip('/')
             
-            # Ensure it fits in Link field (140 chars)
+           
             if len(website_url) > 140:
-                # Use just domain if path makes it too long
+                
                 website_url = f"{parsed.scheme}://{parsed.netloc}"
                 if len(website_url) > 140:
                     website_url = website_url[:140]
@@ -911,8 +898,7 @@ def submit_form(**kwargs):
                 lead.gender = gender
                 frappe.logger().info(f"Updated gender: {gender}")
 
-            # Apply ALL tracking enrichment — UTM + ad platform + Facebook + ga_client_id
-            # This is the key fix: previously these fields were never set for existing leads
+            
             lead = enrich_lead_tracking_fields(
                 lead_doc=lead,
                 data=data,
@@ -936,7 +922,7 @@ def submit_form(**kwargs):
 
             add_activity_to_lead(lead.name, {
                 "activity_type": "Form Submission",
-                "page_url": page_url,           # NOTE: key is "page_url" not "page_url_full"
+                "page_url": page_url,          
                 "timestamp": now(),
                 "browser": f"{browser_details['browser']} on {browser_details['os']}",
                 "device": browser_details["device"],
@@ -1134,9 +1120,7 @@ def track_activity(**kwargs):
         if lead_name:
             lead_org = frappe.db.get_value("CRM Lead", lead_name, "organization")
 
-            # Do not drop the lead just because organization doesn't match or is empty.
-            # Leads created by other apps (e.g. wotomatewa_provider) have no organization.
-            # We still enrich and link them — that IS the purpose of tracking.
+            
             if lead_org and lead_org != org_name:
                 frappe.logger().info(
                     f"Lead {lead_name} has org '{lead_org}', activity is for '{org_name}'. "
@@ -1147,8 +1131,7 @@ def track_activity(**kwargs):
             link_web_visitor_to_lead(client_id, lead_name)
             link_historical_activities_to_lead(client_id, lead_name)
 
-            # Enrich lead with ad/UTM data from this request IF the request carries tracking data
-            # This ensures a lead created before the user clicked an ad gets enriched on next visit
+           
             try:
                 utm_for_enrich = get_utm_params_from_data(data)
                 has_tracking_data = (
@@ -1180,7 +1163,7 @@ def track_activity(**kwargs):
                     frappe.logger().info(f"[track_activity] Lead {lead_name} enriched successfully")
 
             except Exception as enrich_err:
-                # NEVER fail activity tracking because of enrichment errors
+                
                 frappe.logger().error(
                     f"[track_activity] Enrichment failed for lead {lead_name}: {str(enrich_err)}"
                 )
