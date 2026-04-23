@@ -1171,11 +1171,59 @@ def track_activity(**kwargs):
 
 
 
-        percent_scrolled = data.get("percent_scrolled", "")
-        if "scroll" in activity_type.lower() and percent_scrolled:
-            if isinstance(percent_scrolled, str):
-                percent_scrolled = percent_scrolled.replace("scroll_", "")
-            activity_type = f"Scroll {percent_scrolled}%"
+        activity_type_raw = str(data.get("activity_type") or data.get("event") or "")
+        element_text = str(data.get("element_text") or "").strip()
+        element_href = str(data.get("element_href") or "").strip()
+        nav_item     = str(data.get("nav_item") or "").strip()
+        tab_name     = str(data.get("tab_name") or "").strip()
+        dom_path     = str(data.get("dom_path") or "").strip()
+        page_title   = str(data.get("page_title") or "").strip()
+        cta_name     = str(data.get("cta_name") or data.get("link_name") or "").strip()
+        cta_location = str(data.get("cta_location") or "").strip()
+        href_clean   = element_href.split("?")[0] if element_href else ""
+
+        if activity_type_raw == "nav_click":
+            parts = ["Nav Click"]
+            if nav_item:           parts.append(nav_item.replace("-", " ").title())
+            elif element_text:     parts.append(element_text[:50])
+            if href_clean and href_clean != "#": parts.append(f"→ {href_clean}")
+            activity_type = " | ".join(parts)
+
+        elif activity_type_raw == "cta_click":
+            parts = ["CTA Click"]
+            if cta_name:     parts.append(cta_name)
+            if cta_location: parts.append(f"in {cta_location}")
+            activity_type = " | ".join(parts)
+
+        elif activity_type_raw == "footer_click":
+            label = str(data.get("link_name") or element_text or "").strip()
+            activity_type = f"Footer Click | {label}" if label else "Footer Click"
+
+        elif activity_type_raw == "tab_click":
+            activity_type = f"Tab Click | {tab_name}" if tab_name else "Tab Click"
+
+        elif activity_type_raw == "generic_click":
+            label = element_text or href_clean or "unknown"
+            activity_type = f"Click | {label[:60]}"
+
+        elif "scroll" in activity_type_raw.lower():
+            pct = str(data.get("percent_scrolled", "")).replace("scroll_", "")
+            activity_type = f"Scroll {pct}%" if pct else "Scroll"
+
+        elif activity_type_raw == "page_view":
+            activity_type = f"Page View | {page_title}" if page_title else "Page View"
+
+        elif activity_type_raw == "form_start":
+            fname = str(data.get("form_name") or data.get("form_id") or "").strip()
+            activity_type = f"Form Started | {fname}" if fname else "Form Started"
+
+        else:
+            activity_type = activity_type_raw
+
+        if not cta_name:
+            cta_name = element_text[:80] if element_text else ""
+        if not cta_location:
+            cta_location = dom_path or activity_type_raw
 
         tracked_item = (
             data.get("product_name")
@@ -1184,22 +1232,14 @@ def track_activity(**kwargs):
             or ""
         )
 
-        cta_name = (
-            data.get("cta_name")
-            or data.get("link_name")
-            or data.get("nav_item")
-            or data.get("formName")
-            or ""
-        )
-    
-        cta_location = data.get("cta_location") or activity_type
-
         success = add_activity_to_lead(lead_name, {
             "activity_type": activity_type,
             "page_url_full": page_url,
             "product_name": tracked_item,
             "cta_name": cta_name,
             "cta_location": cta_location,
+            "element_href": element_href,
+            "dom_path": dom_path,
             "timestamp": now(),
             "browser": f"{browser_details['browser']} on {browser_details['os']}",
             "device": browser_details["device"],

@@ -437,13 +437,16 @@ document.addEventListener('submit', function (e) {
 (function patchAjax() {
 
  
+  const TRACKER_ENDPOINT = script && (
+    script.getAttribute('data-frappe-url') || 
+    new URL(script.src).origin
+  );
+
   const FORM_URL_PATTERNS = [
     /signup/i, /register/i, /login/i, /contact/i, /subscribe/i,
     /submit/i, /enquir/i, /inquiry/i, /booking/i, /quote/i,
-    /apply/i, /join/i, /lead/i, /demo/i, /trial/i, /webform/i,
-    /api\/method/i  
+    /apply/i, /join/i, /lead/i, /demo/i, /trial/i, /webform/i
   ];
-
   
   const FORM_BODY_KEYS = [
     'email', 'phone', 'mobile', 'first_name', 'last_name', 'name',
@@ -456,6 +459,12 @@ document.addEventListener('submit', function (e) {
   ];
 
   function looksLikeFormUrl(url) {
+    try {
+      const callOrigin = new URL(url, location.href).origin;
+      if (callOrigin !== location.origin && TRACKER_ENDPOINT && callOrigin !== TRACKER_ENDPOINT) {
+        return false;
+      }
+    } catch(e) {}
     return FORM_URL_PATTERNS.some(p => p.test(url));
   }
 
