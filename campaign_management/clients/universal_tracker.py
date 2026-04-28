@@ -1171,6 +1171,11 @@ def track_activity(**kwargs):
                             "ga_client_id", client_id,
                             update_modified=False
                         )
+                        
+                        
+                    # Also link visitor and migrate historical activities
+                    link_web_visitor_to_lead(client_id, email_lead.name)
+                    link_historical_activities_to_lead(client_id, email_lead.name)
 
                     # Enrich this cross-device lead with tracking data too
                     if has_tracking_data:

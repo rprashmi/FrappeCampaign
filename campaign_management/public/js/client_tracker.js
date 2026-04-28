@@ -151,7 +151,7 @@ console.log('CONFIG loaded:', CONFIG);
       ...eventData
     };
 
-    const knownEmail = sessionStorage.getItem('ct_user_email') || '';
+    const knownEmail = localStorage.getItem('ct_user_email') || '';
     if (knownEmail) {
         payload.lead_email = knownEmail;
     }
@@ -405,7 +405,7 @@ document.addEventListener('submit', function (e) {
 
   const emailField = form.querySelector('input[type="email"]');
   if (emailField && emailField.value) {
-    sessionStorage.setItem('ct_user_email', emailField.value.trim().toLowerCase());
+    localStorage.setItem('ct_user_email', emailField.value.trim().toLowerCase());
     log('Cross-device email stored:', emailField.value.trim().toLowerCase());
   }
   
@@ -520,6 +520,13 @@ document.addEventListener('submit', function (e) {
   function emitAjaxFormSubmit(url, parsedBody, statusCode) {
     const sanitized = sanitizeBody(parsedBody);
     const normalized = normalizeFieldNames(sanitized);
+
+    const emailFromAjax = normalized.email || normalized.lead_email || '';
+    if (emailFromAjax) {
+      localStorage.setItem('ct_user_email', emailFromAjax.trim().toLowerCase());
+      log('Cross-device email stored from AJAX:', emailFromAjax);
+    }
+
     pushToDataLayer('form_submit', {
       ...normalized,
       source: 'auto_tracking',
@@ -607,6 +614,12 @@ window.addEventListener('message', e => {
   };
 
   const normalizedData = normalizeFieldNames(data);
+
+  const emailFromIframe = normalizedData.email || normalizedData.lead_email || '';
+  if (emailFromIframe) {
+    localStorage.setItem('ct_user_email', emailFromIframe.trim().toLowerCase());
+    log('Cross-device email stored from iframe:', emailFromIframe);
+  }
 
   pushToDataLayer('form_submit', normalizedData);
   log('Form Submit (Iframe):', normalizedData.form_name, normalizedData);
