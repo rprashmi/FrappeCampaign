@@ -151,6 +151,11 @@ console.log('CONFIG loaded:', CONFIG);
       ...eventData
     };
 
+    const knownEmail = sessionStorage.getItem('ct_user_email') || '';
+    if (knownEmail) {
+        payload.lead_email = knownEmail;
+    }
+
     window.dataLayer.push(payload);
     log('→ DataLayer Push:', eventName, payload);
   }
@@ -397,6 +402,12 @@ document.addEventListener('submit', function (e) {
 
   const hasPassword = form.querySelector('input[type="password"]');
   if (hasPassword) return;
+
+  const emailField = form.querySelector('input[type="email"]');
+  if (emailField && emailField.value) {
+    sessionStorage.setItem('ct_user_email', emailField.value.trim().toLowerCase());
+    log('Cross-device email stored:', emailField.value.trim().toLowerCase());
+  }
   
   const formData = new FormData(form);
 

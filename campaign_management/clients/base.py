@@ -273,31 +273,38 @@ def get_or_create_web_visitor(client_id, data):
 
 
 def link_web_visitor_to_lead(client_id, lead_name):
-    """Link Web Visitor to Lead"""
+    """
+    Links Web Visitor to a Lead.
+    Sets converted_lead only if currently empty (first lead wins).
+    Multi-lead fan-out is handled via ga_client_id query in get_all_leads_for_client —
+    we don't need converted_lead to be accurate for activity routing.
+    """
     try:
         visitor_name = frappe.db.get_value(
-            "Web Visitor",
-            {"client_id": client_id},
-            "name"
+            "Web Visitor", {"client_id": client_id}, "name"
         )
-        if visitor_name:
+        if not visitor_name:
+            return
+
+        current = frappe.db.get_value(
+            "Web Visitor", visitor_name, "converted_lead"
+        )
+        if not current:
             frappe.db.set_value(
-                "Web Visitor",
-                visitor_name,
-                "converted_lead",
-                lead_name,
+                "Web Visitor", visitor_name,
+                "converted_lead", lead_name,
                 update_modified=False
             )
             frappe.logger().info(
-                f"Linked Web Visitor {visitor_name} to Lead {lead_name}"
+                f"[link_visitor] {visitor_name} → {lead_name}"
+            )
+        else:
+            frappe.logger().info(
+                f"[link_visitor] {visitor_name} already linked to {current}; "
+                f"skipping overwrite for {lead_name}"
             )
     except Exception as e:
-        frappe.logger().error(
-            f"Failed to link visitor {client_id}: {str(e)}"
-        )
-
-
-
+        frappe.logger().error(f"[link_visitor] Failed: {str(e)}")
 
 def truncate_url(url, max_length=60):
     """

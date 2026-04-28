@@ -333,85 +333,50 @@ def enrich_lead_tracking_fields(lead_doc, data, utm_params, normalized_source, n
 
 
 def find_lead_cross_device(email, client_id, org_name):
-    """Cross-Device Mapping: Find lead by email OR client_id"""
-    existing_lead = None
+    """
+    Lead lookup — email is the ONLY uniqueness key.
+    client_id is used only to backfill ga_client_id on an existing lead,
+    never to block creation of a new one.
+    """
+    if not email:
+        return None
 
-    
-    if email:
-        try:
-            
-            existing_lead = frappe.db.get_value(
+    try:
+        # Check same org first
+        existing = frappe.db.get_value(
+            "CRM Lead",
+            {"email": email, "organization": org_name},
+            ["name", "email", "mobile_no", "ga_client_id"],
+            as_dict=True
+        )
+        # Fallback: any org
+        if not existing:
+            existing = frappe.db.get_value(
                 "CRM Lead",
-                {"email": email, "organization": org_name},
+                {"email": email},
                 ["name", "email", "mobile_no", "ga_client_id"],
                 as_dict=True
             )
 
-            
-            if not existing_lead:
-                existing_lead = frappe.db.get_value(
-                    "CRM Lead",
-                    {"email": email},
-                    ["name", "email", "mobile_no", "ga_client_id"],
-                    as_dict=True
-                )
+        if existing:
+            frappe.logger().info(f"[find_lead] Found by email: {existing.name}")
 
-            if existing_lead:
-                frappe.logger().info(f"Found existing lead by email: {existing_lead.name}")
+            # Backfill org if missing
+            if not frappe.db.get_value("CRM Lead", existing.name, "organization"):
+                frappe.db.set_value("CRM Lead", existing.name,
+                                    "organization", org_name, update_modified=False)
 
-                
-                if not frappe.db.get_value("CRM Lead", existing_lead.name, "organization"):
-                    frappe.db.set_value(
-                        "CRM Lead",
-                        existing_lead.name,
-                        "organization",
-                        org_name,
-                        update_modified=False
-                    )
+            # Backfill client_id if lead has none (cross-device arrival)
+            if client_id and not existing.get("ga_client_id"):
+                frappe.db.set_value("CRM Lead", existing.name,
+                                    "ga_client_id", client_id, update_modified=False)
+                link_web_visitor_to_lead(client_id, existing.name)
+                frappe.logger().info(f"[find_lead] Backfilled ga_client_id={client_id}")
 
-               
-                if client_id and existing_lead.get("ga_client_id") != client_id:
-                    frappe.db.set_value(
-                        "CRM Lead",
-                        existing_lead.name,
-                        "ga_client_id",
-                        client_id,
-                        update_modified=False
-                    )
-                    link_web_visitor_to_lead(client_id, existing_lead.name)
+            return existing
 
-                return existing_lead
-
-        except Exception as e:
-            frappe.logger().error(f"Error finding by email: {str(e)}")
-
-    
-    if client_id:
-        try:
-           
-            existing_lead = frappe.db.get_value(
-                "CRM Lead",
-                {"ga_client_id": client_id},
-                ["name", "email", "mobile_no", "ga_client_id", "organization"],
-                as_dict=True
-            )
-
-            if existing_lead:
-                frappe.logger().info(f"Found existing lead by client_id: {existing_lead.name}")
-                
-                if not existing_lead.get("organization") and org_name:
-                    frappe.db.set_value(
-                        "CRM Lead",
-                        existing_lead.name,
-                        "organization",
-                        org_name,
-                        update_modified=False
-                    )
-                    frappe.logger().info(f"Backfilled organization '{org_name}' on lead {existing_lead.name}")
-                return existing_lead
-
-        except Exception as e:
-            frappe.logger().error(f"Error finding by client_id: {str(e)}")
+    except Exception as e:
+        frappe.logger().error(f"[find_lead] Error: {str(e)}")
 
     return None
 
@@ -1021,6 +986,33 @@ def submit_form(**kwargs):
     except Exception as e:
         frappe.logger().error(frappe.get_traceback())
         return {"success": False, "message": str(e)}
+    
+    
+    
+def get_all_leads_for_client(client_id, visitor_converted_lead=None):
+    """
+    Returns ALL lead names associated with a client_id.
+    
+    Why: Multiple people can share a browser (same client_id) but each
+    submits with their own email → multiple leads with same ga_client_id.
+    Activities must fan out to all of them.
+    
+    Also includes cross-device leads found via visitor.converted_lead.
+    """
+    lead_names = set()
+
+    if visitor_converted_lead:
+        lead_names.add(visitor_converted_lead)
+
+    if client_id:
+        matches = frappe.get_all(
+            "CRM Lead",
+            filters={"ga_client_id": client_id},
+            pluck="name"
+        )
+        lead_names.update(matches)
+
+    return list(lead_names)
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -1104,52 +1096,36 @@ def track_activity(**kwargs):
         )
 
         
-        lead_name = None
-        lead_org = None
+        # --- Fan-out: find ALL leads for this client_id ---
+        all_lead_names = get_all_leads_for_client(
+            client_id,
+            visitor_converted_lead=visitor.converted_lead if visitor else None
+        )
 
-        if visitor.converted_lead:
-            lead_name = visitor.converted_lead
+        frappe.logger().info(
+            f"[track_activity] client_id={client_id} → "
+            f"{len(all_lead_names)} lead(s): {all_lead_names}"
+        )
 
-        if not lead_name and client_id:
-            lead_name = frappe.db.get_value(
-                "CRM Lead",
-                {"ga_client_id": client_id},
-                "name"
-            )
+        utm_for_enrich = get_utm_params_from_data(data)
+        has_tracking_data = bool(
+            data.get("fbclid") or data.get("gclid") or
+            data.get("msclkid") or data.get("li_fat_id") or
+            data.get("ttclid") or utm_for_enrich.get("utm_source")
+        )
 
-        if lead_name:
-            lead_org = frappe.db.get_value("CRM Lead", lead_name, "organization")
-
-            
-            if lead_org and lead_org != org_name:
-                frappe.logger().info(
-                    f"Lead {lead_name} has org '{lead_org}', activity is for '{org_name}'. "
-                    f"Still enriching — cross-app lead."
-                )
-
-            # Always link visitor and historical activities
-            link_web_visitor_to_lead(client_id, lead_name)
-            link_historical_activities_to_lead(client_id, lead_name)
-
-           
+        for ln in all_lead_names:
             try:
-                utm_for_enrich = get_utm_params_from_data(data)
-                has_tracking_data = (
-                    data.get("fbclid") or
-                    data.get("gclid") or
-                    data.get("msclkid") or
-                    data.get("li_fat_id") or
-                    data.get("ttclid") or
-                    utm_for_enrich.get("utm_source")
-                )
+                # Keep visitor → lead pointer (first-touch only, won't overwrite)
+                link_web_visitor_to_lead(client_id, ln)
+                link_historical_activities_to_lead(client_id, ln)
 
                 if has_tracking_data:
-                    frappe.logger().info(f"[track_activity] Enriching lead {lead_name} with tracking data from this request")
                     source_for_enrich = determine_source(data, org_config)
                     norm_source = normalize_utm_value(utm_for_enrich.get("utm_source"), "source")
                     norm_medium = normalize_utm_value(utm_for_enrich.get("utm_medium"), "medium")
 
-                    lead_doc = frappe.get_doc("CRM Lead", lead_name)
+                    lead_doc = frappe.get_doc("CRM Lead", ln)
                     lead_doc = enrich_lead_tracking_fields(
                         lead_doc=lead_doc,
                         data=data,
@@ -1160,17 +1136,66 @@ def track_activity(**kwargs):
                         client_id=client_id
                     )
                     lead_doc.save(ignore_permissions=True)
-                    frappe.logger().info(f"[track_activity] Lead {lead_name} enriched successfully")
+                    frappe.logger().info(f"[track_activity] Enriched lead {ln}")
 
             except Exception as enrich_err:
-                
                 frappe.logger().error(
-                    f"[track_activity] Enrichment failed for lead {lead_name}: {str(enrich_err)}"
+                    f"[track_activity] Enrichment failed for {ln}: {str(enrich_err)}"
                 )
                 frappe.log_error(frappe.get_traceback(), "track_activity Enrichment Error")
 
+        # For activity logging purposes, use first lead (or None = store on visitor)
+        lead_name = all_lead_names[0] if all_lead_names else None
 
+        # Cross-device: if email is present in this request,
+        # find any lead with that email and add it to the fan-out list
+        lead_email = str(data.get("lead_email") or "").strip().lower()
+        if lead_email:
+            try:
+                email_lead = frappe.db.get_value(
+                    "CRM Lead",
+                    {"email": lead_email},
+                    ["name", "ga_client_id"],
+                    as_dict=True
+                )
+                if email_lead and email_lead.name not in all_lead_names:
+                    frappe.logger().info(
+                        f"[track_activity] Cross-device: found lead {email_lead.name} "
+                        f"via email={lead_email}"
+                    )
+                    all_lead_names.append(email_lead.name)
+                    lead_name = lead_name or email_lead.name
 
+                    # Backfill new client_id onto that lead if it has none
+                    if client_id and not email_lead.get("ga_client_id"):
+                        frappe.db.set_value(
+                            "CRM Lead", email_lead.name,
+                            "ga_client_id", client_id,
+                            update_modified=False
+                        )
+
+                    # Enrich this cross-device lead with tracking data too
+                    if has_tracking_data:
+                        try:
+                            source_for_enrich = determine_source(data, org_config)
+                            norm_source = normalize_utm_value(utm_for_enrich.get("utm_source"), "source")
+                            norm_medium = normalize_utm_value(utm_for_enrich.get("utm_medium"), "medium")
+                            cd_lead_doc = frappe.get_doc("CRM Lead", email_lead.name)
+                            cd_lead_doc = enrich_lead_tracking_fields(
+                                lead_doc=cd_lead_doc,
+                                data=data,
+                                utm_params=utm_for_enrich,
+                                normalized_source=norm_source,
+                                normalized_medium=norm_medium,
+                                source=source_for_enrich,
+                                client_id=client_id
+                            )
+                            cd_lead_doc.save(ignore_permissions=True)
+                            frappe.logger().info(f"[track_activity] Cross-device lead {email_lead.name} enriched")
+                        except Exception as ce:
+                            frappe.logger().error(f"[track_activity] Cross-device enrichment failed: {str(ce)}")
+
+        
         activity_type_raw = str(data.get("activity_type") or data.get("event") or "")
         element_text = str(data.get("element_text") or "").strip()
         element_href = str(data.get("element_href") or "").strip()
@@ -1232,7 +1257,8 @@ def track_activity(**kwargs):
             or ""
         )
 
-        success = add_activity_to_lead(lead_name, {
+        # Build activity dict once, fan out to ALL leads sharing this client_id
+        activity_dict = {
             "activity_type": activity_type,
             "page_url_full": page_url,
             "product_name": tracked_item,
@@ -1248,16 +1274,24 @@ def track_activity(**kwargs):
             "client_id": client_id,
             "user_agent": user_agent,
             **utm_params
-        })
+        }
+
+        if all_lead_names:
+            for ln in all_lead_names:
+                add_activity_to_lead(ln, activity_dict)
+            activity_saved = True
+        else:
+            # No leads yet — store against visitor for future migration
+            activity_saved = add_activity_to_lead(None, activity_dict)
 
         frappe.db.commit()
 
         return {
             "success": True,
             "visitor": visitor.name,
-            "linked_lead": lead_name,
+            "linked_leads": all_lead_names,
             "organization": org_name,
-            "activity_saved": success,
+            "activity_saved": activity_saved,
             "device_detected": browser_details["device"],
             "utm_captured": {k: v for k, v in utm_params.items() if v}
         }
