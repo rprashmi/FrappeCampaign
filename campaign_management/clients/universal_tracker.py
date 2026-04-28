@@ -1147,8 +1147,6 @@ def track_activity(**kwargs):
         # For activity logging purposes, use first lead (or None = store on visitor)
         lead_name = all_lead_names[0] if all_lead_names else None
 
-        # Cross-device: if email is present in this request,
-        # find any lead with that email and add it to the fan-out list
         lead_email = str(data.get("lead_email") or "").strip().lower()
         if lead_email:
             try:
@@ -1194,6 +1192,11 @@ def track_activity(**kwargs):
                             frappe.logger().info(f"[track_activity] Cross-device lead {email_lead.name} enriched")
                         except Exception as ce:
                             frappe.logger().error(f"[track_activity] Cross-device enrichment failed: {str(ce)}")
+
+            except Exception as e:
+                frappe.logger().error(
+                    f"[track_activity] Cross-device email lookup failed: {str(e)}"
+                )
 
         
         activity_type_raw = str(data.get("activity_type") or data.get("event") or "")
