@@ -1,0 +1,69 @@
+{
+  "category": "Modules",
+  "charts": [],
+  "cards": [],
+  "chart_config": {},
+  "creation": "2025-04-05 10:00:00",
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "campaign",
+  "idx": 0,
+  "is_hidden": 0,
+  "label": "Campaign Management",
+  "links": [
+    {
+      "hidden": 0,
+      "is_query_report": 0,
+      "label": "Quick Actions",
+      "link_count": 0,
+      "link_to": "",
+      "link_type": "DocType",
+      "onboard": 0,
+      "type": "Card Break"
+    },
+    {
+      "hidden": 0,
+      "is_query_report": 0,
+      "label": "Create Landing Page",
+      "link_count": 0,
+      "link_to": "Landing Page",
+      "link_type": "DocType",
+      "new_doctype": 1,
+      "onboard": 1,
+      "type": "Link"
+    },
+    {
+      "hidden": 0,
+      "is_query_report": 0,
+      "label": "Create Form",
+      "link_count": 0,
+      "link_to": "Campaign Forms",
+      "link_type": "DocType",
+      "new_doctype": 1,
+      "onboard": 1,
+      "type": "Link"
+    },
+    {
+      "hidden": 0,
+      "is_query_report": 0,
+      "label": "Create Campaign",
+      "link_count": 0,
+      "link_to": "Campaigns",
+      "link_type": "DocType",
+      "new_doctype": 1,
+      "onboard": 1,
+      "type": "Link"
+    }
+  ],
+  "module": "Campaign Management",
+  "name": "Campaign Management",
+  "number_cards": [],
+  "parent_field": "",
+  "public": 1,
+  "restrict_to_domain": "",
+  "sequence_id": 0.0,
+  "shortcuts": [],
+  "title": "Campaign Management"
+}

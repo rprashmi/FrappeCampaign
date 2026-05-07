@@ -1,0 +1,8 @@
+{
+  "doctype": "Page",
+  "name": "campaign-management-home",
+  "module": "Campaign Management",
+  "title": "Campaign Management Home",
+  "icon": "octicon octicon-megaphone",
+  "standard": "Yes"
+}

@@ -1,0 +1,67 @@
+/* Campaign Card View Styles */
+.campaign-card-view .list-row {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    padding: 16px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+}
+
+.campaign-card-view .list-row:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+    border-color: #667eea;
+}
+
+.campaign-card-view .list-row-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+/* Card Thumbnail */
+.campaign-card-thumbnail {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+/* Card Content */
+.campaign-card-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a202c;
+    margin-bottom: 8px;
+}
+
+.campaign-card-meta {
+    display: flex;
+    justify-content: space-between;
+    color: #718096;
+    font-size: 13px;
+}
+
+/* Empty State */
+.campaign-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.campaign-empty-state img {
+    width: 200px;
+    opacity: 0.5;
+    margin-bottom: 20px;
+}
+
+.campaign-empty-state h3 {
+    color: #4a5568;
+    margin-bottom: 8px;
+}
+
+.campaign-empty-state p {
+    color: #a0aec0;
+}
