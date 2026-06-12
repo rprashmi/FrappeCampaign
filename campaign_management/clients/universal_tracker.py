@@ -250,7 +250,7 @@ def determine_source(data, org_config):
     frappe.logger().info("=" * 60)
     return "Direct"
 
-def enrich_lead_tracking_fields(lead_doc, data, utm_params, normalized_source, normalized_medium, source, client_id):
+def enrich_lead_tracking_fields(lead_doc, data, utm_params, normalized_source, normalized_medium, source, client_id, org_config=None):
     """
     Universal enrichment engine — applies ALL tracking fields to any lead doc.
     
@@ -273,6 +273,12 @@ def enrich_lead_tracking_fields(lead_doc, data, utm_params, normalized_source, n
     if client_id and not lead_doc.get("ga_client_id"):
         lead_doc.ga_client_id = client_id
         frappe.logger().info(f"[Enrich] Set ga_client_id: {client_id}")
+        
+    if org_config and not lead_doc.get("tracking_organization"):
+        tracking_org_name = org_config.get("tracking_org")   # set by identify_organization()
+        if tracking_org_name:
+            lead_doc.tracking_organization = tracking_org_name
+            frappe.logger().info(f"[Enrich] Set tracking_organization: {tracking_org_name}")
 
     # UTM fields — first touch wins, never overwrite
     if normalized_source and not lead_doc.get("utm_source"):
@@ -871,7 +877,8 @@ def submit_form(**kwargs):
                 normalized_source=normalized_source,
                 normalized_medium=normalized_medium,
                 source=source,
-                client_id=client_id
+                client_id=client_id,
+                org_config=org_config
             )
 
             lead.save(ignore_permissions=True)
@@ -930,6 +937,7 @@ def submit_form(**kwargs):
             "source_name": str(data.get("formName") or "Contact Form"),
             "website": website_url,
             "organization": org_name,
+            "tracking_organization": org_config.get("tracking_org") or None,
             "ga_client_id": client_id or None,
             "page_url_full": page_url,
             "referrer": referrer,
@@ -950,7 +958,8 @@ def submit_form(**kwargs):
             normalized_source=normalized_source,
             normalized_medium=normalized_medium,
             source=source,
-            client_id=client_id
+            client_id=client_id,
+            org_config=org_config
         )
         lead.save(ignore_permissions=True)
         frappe.db.commit()
@@ -1133,7 +1142,8 @@ def track_activity(**kwargs):
                         normalized_source=norm_source,
                         normalized_medium=norm_medium,
                         source=source_for_enrich,
-                        client_id=client_id
+                        client_id=client_id,
+                        org_config=org_config 
                     )
                     lead_doc.save(ignore_permissions=True)
                     frappe.logger().info(f"[track_activity] Enriched lead {ln}")
@@ -1191,7 +1201,8 @@ def track_activity(**kwargs):
                                 normalized_source=norm_source,
                                 normalized_medium=norm_medium,
                                 source=source_for_enrich,
-                                client_id=client_id
+                                client_id=client_id,
+                                org_config=org_config
                             )
                             cd_lead_doc.save(ignore_permissions=True)
                             frappe.logger().info(f"[track_activity] Cross-device lead {email_lead.name} enriched")

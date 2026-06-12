@@ -109,7 +109,19 @@ def get_custom_fields():
             #  "in_standard_filter": 1,
             #  "description": "Lead's country"
             # },
-
+            
+            {
+                "fieldname": "tracking_organization",
+                "label": "Tracking Organization",
+                "fieldtype": "Link",
+                "options": "Tracking Organization",
+                "insert_after": "organization",   # sits right next to CRM Organization for visibility
+                "in_list_view": 0,
+                "in_standard_filter": 1,
+                "read_only": 0,
+                "description": "Source website/tracking origin for this lead"
+            },
+                        
 
             {"fieldname": "campaign_lead_link",
              "label": "Campaign Lead",
