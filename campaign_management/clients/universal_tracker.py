@@ -105,6 +105,82 @@ def clear_organization_cache():
     """
     frappe.cache().delete_value("tracking_organizations_config")
     frappe.logger().info("Organization config cache cleared")
+    
+    
+@frappe.whitelist(allow_guest=True, methods=['GET', 'POST'])
+def get_org_config(**kwargs):
+    """
+    Lightweight endpoint for GTM Server Container to fetch
+    dynamic pixel/GA4 config per tracking_key.
+    
+    Called once per event by the server container.
+    Response is cached at the GTM level via the tracking_key.
+    
+    Returns: { ga4_measurement_id, facebook_pixel_id, 
+                facebook_access_token, meta_test_event_code,
+                ga4_api_secret, org_name }
+    """
+    frappe.set_user("Guest")
+    
+    try:
+        data = get_request_data()
+        data.update(kwargs)
+        
+        tracking_key = str(
+            data.get("tracking_key") or
+            data.get("key") or ""
+        ).lower().strip()
+        
+        if not tracking_key:
+            return {"success": False, "message": "tracking_key is required"}
+        
+        # Try cache first
+        cache_key = f"org_config_api_{tracking_key}"
+        cached = frappe.cache().get_value(cache_key)
+        if cached:
+            return cached
+        
+        # Fetch from Tracking Organization
+        org = frappe.db.get_value(
+            "Tracking Organization",
+            {"tracking_key": tracking_key, "is_active": 1},
+            [
+                "name",
+                "organization_name",
+                "ga4_measurement_id",
+                "ga4_api_secret",
+                "facebook_pixel_id",
+                "facebook_access_token",
+                "meta_test_event_code",
+                "crm_organization"
+            ],
+            as_dict=True
+        )
+        
+        if not org:
+            frappe.logger().error(f"[get_org_config] No active org for key: {tracking_key}")
+            return {"success": False, "message": f"Unknown tracking_key: {tracking_key}"}
+        
+        result = {
+            "success": True,
+            "tracking_key": tracking_key,
+            "org_name": org.crm_organization or org.organization_name,
+            "ga4_measurement_id": org.ga4_measurement_id or "",
+            "ga4_api_secret": org.ga4_api_secret or "",
+            "facebook_pixel_id": org.facebook_pixel_id or "",
+            "facebook_access_token": org.facebook_access_token or "",
+            "meta_test_event_code": org.meta_test_event_code or ""
+        }
+        
+        # Cache for 10 minutes
+        frappe.cache().set_value(cache_key, result, expires_in_sec=600)
+        frappe.logger().info(f"[get_org_config] Served config for: {tracking_key}")
+        
+        return result
+        
+    except Exception as e:
+        frappe.logger().error(f"[get_org_config] Error: {str(e)}")
+        return {"success": False, "message": str(e)}
 
 
 def normalize_utm_value(raw_value, field_type="source"):

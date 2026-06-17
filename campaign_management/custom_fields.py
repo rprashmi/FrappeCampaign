@@ -195,17 +195,77 @@ def get_custom_fields():
              "insert_after": "ga4_property_id",
              "collapsible": 1},
 
-            {"fieldname": "facebook_pixel_id",
-             "label": "Facebook Pixel ID",
-             "fieldtype": "Data",
-             "insert_after": "advertising_section",
-             "description": "Facebook/Instagram Pixel ID for conversion tracking"},
+            # {"fieldname": "facebook_pixel_id",
+            #  "label": "Facebook Pixel ID",
+            #  "fieldtype": "Data",
+            #  "insert_after": "advertising_section",
+            #  "description": "Facebook/Instagram Pixel ID for conversion tracking"},
 
-            {"fieldname": "google_ads_conversion_id",
-             "label": "Google Ads Conversion ID",
-             "fieldtype": "Data",
-             "insert_after": "facebook_pixel_id",
-             "description": "Google Ads Conversion Tracking ID"},
+            # {"fieldname": "google_ads_conversion_id",
+            #  "label": "Google Ads Conversion ID",
+            #  "fieldtype": "Data",
+            #  "insert_after": "facebook_pixel_id",
+            #  "description": "Google Ads Conversion Tracking ID"},
+        ],
+        
+        
+        "Tracking Organization": [
+
+            {
+                "fieldname": "meta_section",
+                "label": "Meta CAPI Configuration",
+                "fieldtype": "Section Break",
+                "insert_after": "crm_organization"
+            },
+
+            {
+                "fieldname": "facebook_pixel_id",
+                "label": "Facebook Pixel ID",
+                "fieldtype": "Data",
+                "insert_after": "meta_section"
+            },
+
+            {
+                "fieldname": "facebook_access_token",
+                "label": "Facebook Access Token",
+                "fieldtype": "Password",
+                "insert_after": "facebook_pixel_id"
+            },
+
+            {
+                "fieldname": "meta_dataset_id",
+                "label": "Meta Dataset ID",
+                "fieldtype": "Data",
+                "insert_after": "facebook_access_token"
+            },
+
+            {
+                "fieldname": "meta_test_event_code",
+                "label": "Meta Test Event Code",
+                "fieldtype": "Data",
+                "insert_after": "meta_dataset_id"
+            },
+
+            {
+                "fieldname": "ga4_section",
+                "label": "GA4 Configuration",
+                "fieldtype": "Section Break",
+                "insert_after": "meta_test_event_code"
+            },
+
+            {
+                "fieldname": "ga4_measurement_id",
+                "label": "GA4 Measurement ID",
+                "fieldtype": "Data",
+                "insert_after": "ga4_section"
+            },
+
+            {
+                "fieldname": "ga4_api_secret",
+                "label": "GA4 API Secret",
+                "fieldtype": "Password",
+                "insert_after": "ga4_measurement_id"
+            }
         ]
     }
 

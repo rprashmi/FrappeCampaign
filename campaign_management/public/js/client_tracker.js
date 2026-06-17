@@ -26,10 +26,76 @@ if (script) {
 const CONFIG = {
   tracking_key: (script && (script.dataset.trackingKey || script.getAttribute('data-tracking-key'))) || 'unknown',
   env: (script && (script.dataset.env || script.getAttribute('data-env'))) || 'prod',
-  debug: (script && (script.dataset.debug || script.getAttribute('data-debug'))) === 'true'
+  debug: (script && (script.dataset.debug || script.getAttribute('data-debug'))) === 'true',
+  frappe_base_url: (script && (script.dataset.frappeUrl || script.getAttribute('data-frappe-url'))) || ''
 };
 
 console.log('CONFIG loaded:', CONFIG);
+
+
+// ============================================================
+// ORG CONFIG — fetch once per session, push to dataLayer
+// ============================================================
+async function fetchAndPushOrgConfig() {
+  const cacheKey = 'ct_org_config_' + CONFIG.tracking_key;
+  const cached = sessionStorage.getItem(cacheKey);
+  
+  if (cached) {
+    try {
+      const config = JSON.parse(cached);
+      window.dataLayer.push({
+        event: 'org_config_loaded',
+        ga4_measurement_id: config.ga4_measurement_id,
+        facebook_pixel_id: config.facebook_pixel_id,
+        tracking_key: CONFIG.tracking_key
+      });
+      log('Org config from session cache:', config);
+      return config;
+    } catch(e) {}
+  }
+  
+  try {
+    // Determine the Frappe base URL from the script src
+    const scriptSrc = (document.currentScript || document.querySelector('script[src*="client_tracker.js"]') || {}).src || '';
+    let frappeBase = '';
+    if (scriptSrc) {
+      try { frappeBase = new URL(scriptSrc).origin; } catch(e) {}
+    }
+    
+    if (!frappeBase) return null;
+    
+    const resp = await fetch(
+      `${frappeBase}/api/method/campaign_management.clients.universal_tracker.get_org_config?tracking_key=${CONFIG.tracking_key}`,
+      { method: 'GET', headers: { 'Accept': 'application/json' } }
+    );
+    
+    if (!resp.ok) return null;
+    
+    const data = await resp.json();
+    const config = data.message || data;
+    
+    if (config && config.success !== false) {
+      sessionStorage.setItem(cacheKey, JSON.stringify(config));
+      
+      window.dataLayer.push({
+        event: 'org_config_loaded',
+        ga4_measurement_id: config.ga4_measurement_id || '',
+        facebook_pixel_id: config.facebook_pixel_id || '',
+        tracking_key: CONFIG.tracking_key
+      });
+      
+      log('Org config loaded from API:', config);
+      return config;
+    }
+  } catch(e) {
+    log('Org config fetch failed:', e);
+  }
+  
+  return null;
+}
+
+// Kick off config fetch immediately (non-blocking)
+fetchAndPushOrgConfig();
 
   function log(...args) {
     if (CONFIG.debug) {
@@ -143,6 +209,7 @@ console.log('CONFIG loaded:', CONFIG);
       ga_client_id: GA_CLIENT_ID,
       client_id: GA_CLIENT_ID,
       page_url_full: location.href,
+      frappe_base_url: CONFIG.frappe_base_url || '',
       page_title: document.title,
       page_referrer: document.referrer || 'direct',
       timestamp: new Date().toISOString(),
