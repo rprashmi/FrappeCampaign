@@ -703,3 +703,104 @@ def enrich_lead_with_facebook_data(lead_doc, data):
         frappe.logger().info(f"Lead enriched with Facebook data")
     
     return lead_doc
+
+
+def send_capi_event(tracking_org_name, event_name, user_data, custom_data=None, event_id=None):
+    """
+    Generic Meta Conversions API sender. Works for Lead, Purchase, ViewContent,
+    CompleteRegistration, or any future event type — just pass a different event_name.
+
+    tracking_org_name: the Tracking Organization doc name (org_config.get("tracking_org"))
+    event_name: Meta standard event name, e.g. "Lead", "Purchase", "CompleteRegistration"
+    user_data: dict with raw values for email/phone/etc — this function hashes them
+    custom_data: optional dict, e.g. {"value": 100, "currency": "USD"}
+    event_id: optional, for deduplication with browser-side Pixel events sharing the same conversion
+
+    Returns: dict with success bool and response details. Never raises — logs and returns
+    on any failure so a CAPI outage never breaks lead creation.
+    """
+    import requests
+    import hashlib
+
+    try:
+        org = frappe.db.get_value(
+            "Tracking Organization",
+            tracking_org_name,
+            ["facebook_pixel_id", "meta_access_token_capi", "meta_test_event_code"],
+            as_dict=True
+        )
+
+        if not org or not org.get("facebook_pixel_id") or not org.get("meta_access_token_capi"):
+            frappe.logger().info(f"[CAPI] Skipping — no pixel/token configured for {tracking_org_name}")
+            return {"success": False, "message": "CAPI not configured for this organization"}
+
+        def sha256_hash(value):
+            if not value:
+                return None
+            return hashlib.sha256(str(value).strip().lower().encode("utf-8")).hexdigest()
+
+        hashed_user_data = {}
+        if user_data.get("email"):
+            hashed_user_data["em"] = [sha256_hash(user_data["email"])]
+        if user_data.get("phone"):
+            # Meta expects phone without leading +, spaces, or dashes
+            clean_phone = "".join(ch for ch in str(user_data["phone"]) if ch.isdigit())
+            hashed_user_data["ph"] = [sha256_hash(clean_phone)]
+        if user_data.get("first_name"):
+            hashed_user_data["fn"] = [sha256_hash(user_data["first_name"])]
+        if user_data.get("last_name"):
+            hashed_user_data["ln"] = [sha256_hash(user_data["last_name"])]
+        if user_data.get("client_ip_address"):
+            hashed_user_data["client_ip_address"] = user_data["client_ip_address"]
+        if user_data.get("client_user_agent"):
+            hashed_user_data["client_user_agent"] = user_data["client_user_agent"]
+        if user_data.get("fbc"):
+            hashed_user_data["fbc"] = user_data["fbc"]
+        if user_data.get("fbp"):
+            hashed_user_data["fbp"] = user_data["fbp"]
+
+        payload = {
+            "data": [{
+                "event_name": event_name,
+                "event_time": int(now_datetime_timestamp()),
+                "action_source": "website",
+                "user_data": hashed_user_data,
+                "event_source_url": user_data.get("event_source_url", ""),
+            }]
+        }
+
+        if event_id:
+            payload["data"][0]["event_id"] = event_id
+        if custom_data:
+            payload["data"][0]["custom_data"] = custom_data
+        if org.get("meta_test_event_code"):
+            payload["test_event_code"] = org["meta_test_event_code"]
+
+        url = f"https://graph.facebook.com/v19.0/{org['facebook_pixel_id']}/events"
+
+        resp = requests.post(
+            url,
+            params={"access_token": org["meta_access_token_capi"]},
+            json=payload,
+            timeout=5
+        )
+
+        result = resp.json()
+
+        if resp.status_code == 200 and not result.get("error"):
+            frappe.logger().info(f"[CAPI] {event_name} sent OK for {tracking_org_name}: {result}")
+            return {"success": True, "response": result}
+        else:
+            frappe.logger().error(f"[CAPI] {event_name} failed for {tracking_org_name}: {result}")
+            return {"success": False, "response": result}
+
+    except Exception as e:
+        frappe.logger().error(f"[CAPI] Exception sending {event_name}: {str(e)}")
+        frappe.log_error(frappe.get_traceback(), "CAPI Send Error")
+        return {"success": False, "message": str(e)}
+
+
+def now_datetime_timestamp():
+    """Unix timestamp helper for CAPI event_time."""
+    import time
+    return time.time()

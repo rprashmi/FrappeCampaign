@@ -4,6 +4,7 @@ Universal Tracker - FIXED VERSION WITH ENHANCED DEBUGGING
 import frappe
 from frappe.utils import now
 import json
+import hashlib
 from urllib.parse import urlparse, parse_qs
 from campaign_management.clients.base import (
     extract_browser_details,
@@ -13,7 +14,8 @@ from campaign_management.clients.base import (
     add_activity_to_lead,
     get_utm_params_from_data,
     link_historical_activities_to_lead,
-    get_ad_click_data  
+    get_ad_click_data,
+    send_capi_event  
 )
 
 
@@ -150,7 +152,8 @@ def get_org_config(**kwargs):
                 "ga4_measurement_id",
                 "ga4_api_secret",
                 "facebook_pixel_id",
-                "facebook_access_token",
+                "meta_access_token_capi",
+                # "facebook_access_token",
                 "meta_test_event_code",
                 "crm_organization"
             ],
@@ -168,7 +171,7 @@ def get_org_config(**kwargs):
             "ga4_measurement_id": org.ga4_measurement_id or "",
             "ga4_api_secret": org.ga4_api_secret or "",
             "facebook_pixel_id": org.facebook_pixel_id or "",
-            "facebook_access_token": org.facebook_access_token or "",
+            "meta_access_token_capi": org.meta_access_token_capi or "",
             "meta_test_event_code": org.meta_test_event_code or ""
         }
         
@@ -1059,6 +1062,32 @@ def submit_form(**kwargs):
         })
 
         frappe.db.commit()
+        
+        tracking_org_name = org_config.get("tracking_org")
+        if tracking_org_name and is_new:
+            email_hash = hashlib.md5(email.encode()).hexdigest()[:8] if email else "noemail"
+
+            event_id = f"{client_id}_Lead_{email_hash}"
+            
+            send_capi_event(
+                tracking_org_name=tracking_org_name,
+                event_name="Lead",
+                user_data={
+                    "email": email,
+                    "phone": phone,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "client_ip_address": ip_address,
+                    "client_user_agent": user_agent,
+                    "fbc": data.get("fbc") or (f"fb.1.{int(__import__('time').time())}.{data.get('fbclid')}" if data.get("fbclid") else ""),
+                    "fbp": data.get("fbp") or "",
+                    "event_source_url": page_url
+                },
+                custom_data={
+                    "content_name": str(data.get("formName") or "Contact Form")
+                },
+                event_id=event_id
+            )
 
         return {
             "success": True,

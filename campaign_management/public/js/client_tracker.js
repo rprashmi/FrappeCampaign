@@ -32,6 +32,17 @@ const CONFIG = {
 
 console.log('CONFIG loaded:', CONFIG);
 
+function getFacebookCookies() {
+  const cookies = {};
+  document.cookie.split(';').forEach(c => {
+    const parts = c.trim().split('=');
+    if (parts[0] === '_fbp') cookies.fbp = parts.slice(1).join('=');
+    if (parts[0] === '_fbc') cookies.fbc = parts.slice(1).join('=');
+  });
+  return cookies;
+}
+const fbCookies = getFacebookCookies();
+
 
 // ============================================================
 // ORG CONFIG — fetch once per session, push to dataLayer
@@ -215,6 +226,7 @@ fetchAndPushOrgConfig();
       timestamp: new Date().toISOString(),
       ...tracking,
       ...adInfo,
+      ...fbCookies,
       ...eventData
     };
 

@@ -224,26 +224,34 @@ def get_custom_fields():
                 "fieldtype": "Data",
                 "insert_after": "meta_section"
             },
-
+            
             {
-                "fieldname": "facebook_access_token",
-                "label": "Facebook Access Token",
-                "fieldtype": "Password",
-                "insert_after": "facebook_pixel_id"
+                "fieldname": "meta_access_token_capi",
+                "label": "Meta Access Token (CAPI)",
+                "fieldtype": "Long Text",
+                "insert_after": "facebook_pixel_id",
+                "description": "Meta Conversions API long-lived access token."
             },
 
-            {
-                "fieldname": "meta_dataset_id",
-                "label": "Meta Dataset ID",
-                "fieldtype": "Data",
-                "insert_after": "facebook_access_token"
-            },
+            # {
+            #     "fieldname": "facebook_access_token",
+            #     "label": "Facebook Access Token",
+            #     "fieldtype": "Password",
+            #     "insert_after": "facebook_pixel_id"
+            # },
+
+            # {
+            #     "fieldname": "meta_dataset_id",
+            #     "label": "Meta Dataset ID",
+            #     "fieldtype": "Data",
+            #     "insert_after": "facebook_access_token"
+            # },
 
             {
                 "fieldname": "meta_test_event_code",
                 "label": "Meta Test Event Code",
                 "fieldtype": "Data",
-                "insert_after": "meta_dataset_id"
+                "insert_after": "meta_access_token_capi"
             },
 
             {
