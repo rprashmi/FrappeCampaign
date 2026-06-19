@@ -58,11 +58,14 @@ async function fetchAndPushOrgConfig() {
         event: 'org_config_loaded',
         ga4_measurement_id: config.ga4_measurement_id,
         facebook_pixel_id: config.facebook_pixel_id,
-        tracking_key: CONFIG.tracking_key
+        tracking_key: CONFIG.tracking_key,
+        source: 'session_cache'
       });
-      log('Org config from session cache:', config);
+      log('✅ Org config from session cache:', config);
       return config;
-    } catch(e) {}
+    } catch(e) {
+      log('⚠️  Failed to parse cached config:', e);
+    }
   }
   
   try {
@@ -73,14 +76,26 @@ async function fetchAndPushOrgConfig() {
       try { frappeBase = new URL(scriptSrc).origin; } catch(e) {}
     }
     
-    if (!frappeBase) return null;
+    if (!frappeBase) {
+      log('⚠️  No Frappe base URL detected, using fallback');
+      pushFallbackOrgConfig();
+      return null;
+    }
     
-    const resp = await fetch(
-      `${frappeBase}/api/method/campaign_management.clients.universal_tracker.get_org_config?tracking_key=${CONFIG.tracking_key}`,
-      { method: 'GET', headers: { 'Accept': 'application/json' } }
-    );
+    const url = `${frappeBase}/api/method/campaign_management.clients.universal_tracker.get_org_config?tracking_key=${CONFIG.tracking_key}`;
+    log(`📡 Fetching org config from: ${url}`);
     
-    if (!resp.ok) return null;
+    const resp = await fetch(url, { 
+      method: 'GET', 
+      headers: { 'Accept': 'application/json' },
+      credentials: 'include'
+    });
+    
+    if (!resp.ok) {
+      log(`❌ Org config fetch failed with status ${resp.status}`);
+      pushFallbackOrgConfig();
+      return null;
+    }
     
     const data = await resp.json();
     const config = data.message || data;
@@ -92,17 +107,38 @@ async function fetchAndPushOrgConfig() {
         event: 'org_config_loaded',
         ga4_measurement_id: config.ga4_measurement_id || '',
         facebook_pixel_id: config.facebook_pixel_id || '',
-        tracking_key: CONFIG.tracking_key
+        tracking_key: CONFIG.tracking_key,
+        source: 'api_fetch',
+        config_data: config
       });
       
-      log('Org config loaded from API:', config);
+      log('✅ Org config loaded from API:', config);
       return config;
+    } else {
+      log('❌ Org config API returned error:', config);
+      pushFallbackOrgConfig();
+      return null;
     }
   } catch(e) {
-    log('Org config fetch failed:', e);
+    log('❌ Org config fetch exception:', e.message);
+    console.error('Org config fetch error:', e);
+    pushFallbackOrgConfig();
   }
   
   return null;
+}
+
+// HELPER: Push fallback event when API fails (allows server-side resolution)
+function pushFallbackOrgConfig() {
+  window.dataLayer.push({
+    event: 'org_config_loaded',
+    ga4_measurement_id: '',
+    facebook_pixel_id: '',
+    tracking_key: CONFIG.tracking_key,
+    source: 'fallback',
+    note: 'Config fetch failed - measurement ID will be resolved server-side'
+  });
+  log('⚠️  Pushed fallback org_config_loaded event (client-side fetch failed)');
 }
 
 // Kick off config fetch immediately (non-blocking)

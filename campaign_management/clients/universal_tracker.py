@@ -115,13 +115,21 @@ def get_org_config(**kwargs):
     Lightweight endpoint for GTM Server Container to fetch
     dynamic pixel/GA4 config per tracking_key.
     
-    Called once per event by the server container.
-    Response is cached at the GTM level via the tracking_key.
-    
+    Called once per session by the GTM web container.
     Returns: { ga4_measurement_id, facebook_pixel_id, 
                 facebook_access_token, meta_test_event_code,
                 ga4_api_secret, org_name }
     """
+   
+    frappe.local.response_type = 'json'
+    cors_origin = frappe.request.headers.get('Origin', '*')
+    frappe.response['headers'] = {
+        'Access-Control-Allow-Origin': cors_origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Accept'
+    }
+    
     frappe.set_user("Guest")
     
     try:
@@ -140,6 +148,7 @@ def get_org_config(**kwargs):
         cache_key = f"org_config_api_{tracking_key}"
         cached = frappe.cache().get_value(cache_key)
         if cached:
+            frappe.logger().debug(f"[get_org_config] Cache hit for: {tracking_key}")
             return cached
         
         # Fetch from Tracking Organization
@@ -153,7 +162,6 @@ def get_org_config(**kwargs):
                 "ga4_api_secret",
                 "facebook_pixel_id",
                 "meta_access_token_capi",
-                # "facebook_access_token",
                 "meta_test_event_code",
                 "crm_organization"
             ],
@@ -183,6 +191,7 @@ def get_org_config(**kwargs):
         
     except Exception as e:
         frappe.logger().error(f"[get_org_config] Error: {str(e)}")
+        frappe.logger().error(frappe.get_traceback())
         return {"success": False, "message": str(e)}
 
 
