@@ -430,8 +430,8 @@ function normalizeFieldNames(data) {
     normalized.last_name = data.lastName || data.last_name || data.lastname;
   }
   
-  if (data.email || data.lead_email || data.email_address || data.user_email) {
-    const emailValue = data.email || data.lead_email || data.email_address || data.user_email;
+  if (data.email || data.lead_email || data.email_address || data.user_email || data.work_email || data.business_email) {
+    const emailValue = data.email || data.lead_email || data.email_address || data.user_email || data.work_email || data.business_email;
     normalized.email = emailValue;
     normalized.lead_email = emailValue;
   }
